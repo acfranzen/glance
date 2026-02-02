@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
+// NEXT_PUBLIC_VERCEL_ENV is set automatically by Vercel (production, preview, or development)
+const isProduction = !!process.env.NEXT_PUBLIC_VERCEL_ENV;
+
 export function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-sm">
@@ -40,9 +43,15 @@ export function Header() {
           </Link>
         </nav>
 
-        <Button asChild size="sm">
-          <Link href="/dashboard">Open Dashboard</Link>
-        </Button>
+        {isProduction ? (
+          <Button asChild size="sm" variant="outline">
+            <Link href="#get-started">Run Locally</Link>
+          </Button>
+        ) : (
+          <Button asChild size="sm">
+            <Link href="/dashboard">Open Dashboard</Link>
+          </Button>
+        )}
       </div>
     </header>
   );

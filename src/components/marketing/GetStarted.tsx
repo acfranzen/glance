@@ -1,6 +1,9 @@
-import { Check, Copy, Terminal } from "lucide-react";
+import { Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+
+// NEXT_PUBLIC_VERCEL_ENV is set automatically by Vercel (production, preview, or development)
+const isProduction = !!process.env.NEXT_PUBLIC_VERCEL_ENV;
 
 const dockerCommand = `git clone https://github.com/acfranzen/glance.git && cd glance && docker compose up`;
 
@@ -159,16 +162,18 @@ export function GetStarted() {
 
         {/* CTA after steps */}
         <div className="mt-16 flex flex-col items-center justify-center gap-4 sm:flex-row">
-          <Button
-            asChild
-            size="lg"
-            className="gap-2 shadow-lg shadow-primary/20"
-          >
-            <Link href="/dashboard">Open Dashboard</Link>
-          </Button>
-          <Button asChild variant="outline" size="lg">
+          {!isProduction && (
+            <Button
+              asChild
+              size="lg"
+              className="gap-2 shadow-lg shadow-primary/20"
+            >
+              <Link href="/dashboard">Open Dashboard</Link>
+            </Button>
+          )}
+          <Button asChild variant={isProduction ? "default" : "outline"} size="lg" className={isProduction ? "shadow-lg shadow-primary/20" : ""}>
             <Link href="https://github.com/acfranzen/glance" target="_blank">
-              View on GitHub
+              {isProduction ? "Clone on GitHub" : "View on GitHub"}
             </Link>
           </Button>
         </div>
