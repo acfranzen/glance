@@ -85,11 +85,13 @@ OpenClaw: "You have 3 open PRs that need review, your Claude usage is at 72%,
 
 OpenClaw interprets your widgets and surfaces what matters. You don't even need to look at the dashboard — OpenClaw does it for you.
 
-### OpenClaw Manages Credentials
+### OpenClaw Already Has Your Credentials
 
-Forget `.env` files, environment variables, and copy-pasting API keys.
+Here's the magic: **OpenClaw already knows your API keys.** Your GitHub token, Anthropic key, Vercel token — they're already in OpenClaw's memory.
 
-Glance stores credentials in an **encrypted SQLite database** (AES-256-GCM). OpenClaw manages them via API — you just say _"here's my GitHub token"_ and OpenClaw handles the rest.
+When you ask for a GitHub widget, OpenClaw doesn't ask you to configure anything. It just stores your existing credentials in Glance's encrypted database and wires everything up.
+
+No `.env` files. No copy-pasting tokens. No configuration circus. It just works.
 
 ---
 

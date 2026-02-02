@@ -1,0 +1,193 @@
+---
+name: glance
+description: AI-extensible personal dashboard. Create custom widgets via API to display GitHub PRs, API usage, weather, or any data source. Use when the user wants dashboard widgets, data visualizations, or to track metrics.
+metadata:
+  {
+    "openclaw":
+      {
+        "emoji": "⚡",
+        "homepage": "https://github.com/acfranzen/glance",
+        "requires": { "env": ["GLANCE_URL"] },
+        "primaryEnv": "GLANCE_URL",
+      },
+  }
+---
+
+# Glance Dashboard
+
+Personal dashboard at `$GLANCE_URL` (default: `http://localhost:3333`).
+
+## API Overview
+
+| Endpoint                            | Method | Purpose                          |
+| ----------------------------------- | ------ | -------------------------------- |
+| `/api/credentials`                  | POST   | Store API keys (encrypted)       |
+| `/api/credentials`                  | GET    | List stored credentials + status |
+| `/api/custom-widgets`               | POST   | Create widget definition (code)  |
+| `/api/custom-widgets`               | GET    | List widget definitions          |
+| `/api/custom-widgets/:slug`         | PATCH  | Update widget definition         |
+| `/api/custom-widgets/:slug/execute` | POST   | Execute server code              |
+| `/api/widgets`                      | POST   | Add widget to dashboard          |
+| `/api/widgets`                      | GET    | List dashboard widgets           |
+
+## Creating a Widget (Full Workflow)
+
+### 1. Store credentials (if needed)
+
+```bash
+curl -X POST $GLANCE_URL/api/credentials \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "github",
+    "name": "My GitHub Token",
+    "value": "ghp_xxxxxxxxxxxx"
+  }'
+```
+
+Providers: `github`, `anthropic`, `openai`, `vercel`, `openweather`
+
+### 2. Create widget definition
+
+```bash
+curl -X POST $GLANCE_URL/api/custom-widgets \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Widget",
+    "description": "Widget description",
+    "source_code": "function Widget() { ... }",
+    "server_code": "const token = await getCredential(\"github\"); ...",
+    "server_code_enabled": true,
+    "data_providers": ["github"],
+    "default_size": { "w": 4, "h": 3 },
+    "min_size": { "w": 2, "h": 2 },
+    "refresh_interval": 300
+  }'
+# Returns: { "id": "cw_abc123", "slug": "my-widget", ... }
+```
+
+### 3. Add to dashboard
+
+```bash
+curl -X POST $GLANCE_URL/api/widgets \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "custom",
+    "title": "My Widget",
+    "custom_widget_id": "cw_abc123",
+    "config": { "owner": "acfranzen", "repo": "glance" }
+  }'
+```
+
+### 4. Execute server code (get fresh data)
+
+```bash
+curl -X POST $GLANCE_URL/api/custom-widgets/my-widget/execute \
+  -H "Content-Type: application/json" \
+  -d '{ "params": {} }'
+# Returns: { "data": { ... } }
+```
+
+## Widget Code Structure
+
+### Client code (`source_code`)
+
+```tsx
+function Widget() {
+  const { data, loading, error, refresh } = useData("github", {
+    endpoint: "/pulls",
+  });
+
+  if (loading) return <Loading />;
+  if (error) return <ErrorDisplay message={error.message} retry={refresh} />;
+
+  return (
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle>Title</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <List
+          items={data.map((item) => ({
+            title: item.title,
+            subtitle: item.description,
+            badge: item.state,
+          }))}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+### Server code (`server_code`)
+
+```javascript
+const token = await getCredential("github");
+
+const response = await fetch("https://api.github.com/repos/owner/repo/pulls", {
+  headers: {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github+json",
+  },
+});
+
+const pulls = await response.json();
+return { items: pulls, fetchedAt: new Date().toISOString() };
+```
+
+## Multi-Repo Pattern
+
+Fetch from multiple sources and combine:
+
+```javascript
+const token = await getCredential("github");
+const repos = ["owner/repo1", "owner/repo2"];
+
+const results = await Promise.all(
+  repos.map(async (repo) => {
+    const res = await fetch(
+      `https://api.github.com/repos/${repo}/pulls?state=open`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+        },
+      },
+    );
+    const pulls = await res.json();
+    return pulls.map((pr) => ({ ...pr, repo }));
+  }),
+);
+
+return { items: results.flat(), fetchedAt: new Date().toISOString() };
+```
+
+## Available Components
+
+Layout: `Card`, `CardHeader`, `CardContent`, `CardFooter`, `CardTitle`, `CardDescription`, `Stack`, `Grid`
+
+Data: `Stat`, `Progress`, `Badge`, `List`, `Avatar`
+
+State: `Loading`, `ErrorDisplay`, `Empty`
+
+Form: `Button`, `Input`, `Label`, `Switch`
+
+Other: `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`, `Tooltip`, `Separator`
+
+Icons: `Icons.GitPullRequest`, `Icons.Clock`, `Icons.Check`, `Icons.AlertCircle`, etc.
+
+## Available Hooks
+
+- `useData(provider, query)` — fetch data (routes through server code when `server_code_enabled: true`)
+- `useConfig()` — access widget config (set on widget instance)
+- `useWidgetState(key, default)` — persistent widget state
+
+## Server Code Rules
+
+**Allowed:** `fetch`, `getCredential(provider)`, `params`, `console.log`, `JSON`, `Date`, `Math`, `Promise`
+
+**Blocked:** `require`, `import`, `eval`, `process`, `fs`, `child_process`
+
+## Full Documentation
+
+Component props, styling, and advanced patterns: [docs/widget-sdk.md](docs/widget-sdk.md)
