@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+// Prevent static generation - this route requires runtime credential access
+export const dynamic = 'force-dynamic';
 import { getCredential } from '@/lib/credentials';
 
 const VERCEL_API = 'https://api.vercel.com';

@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+// Prevent static generation - this route requires runtime database access
+export const dynamic = 'force-dynamic';
 import { nanoid } from 'nanoid';
 import { validateAuthOrInternal } from '@/lib/auth';
 import {
