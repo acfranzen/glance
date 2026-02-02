@@ -4,7 +4,11 @@ The Glance Widget SDK enables AI assistants (and developers) to create custom wi
 
 ## Table of Contents
 
+- [When to Use This Skill](#when-to-use-this-skill)
+- [Prompt Examples](#prompt-examples)
+- [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
+- [Common Workflows](#common-workflows)
 - [Widget Creation API](#widget-creation-api)
 - [Credential Management](#credential-management)
 - [When to Use Server Code](#when-to-use-server-code)
@@ -15,8 +19,129 @@ The Glance Widget SDK enables AI assistants (and developers) to create custom wi
 - [Icons](#icons)
 - [Widget Lifecycle](#widget-lifecycle)
 - [Error Handling Patterns](#error-handling-patterns)
+- [Output Format](#output-format)
 - [Full API Reference](#full-api-reference)
+- [Best Practices](#best-practices)
 - [OpenClaw Integration Guide](#openclaw-integration-guide)
+
+---
+
+## When to Use This Skill
+
+Use the Glance Widget SDK when a user's intent matches any of these patterns:
+
+### Widget Creation & Management
+- User wants to **create a widget** or dashboard element
+- User wants to **update, modify, or reconfigure** an existing widget
+- User wants to **delete or remove** a widget
+- User wants to **move or resize** widgets on the dashboard
+
+### Data Visualization & Tracking
+- User asks to **see their GitHub PRs**, issues, or repository stats
+- User wants to **track API usage** (Anthropic, OpenAI, etc.)
+- User asks about **calendar events** or schedules
+- User wants a **weather widget** for any location
+- User wants to **visualize or track any data** from an external API
+- User mentions wanting to **monitor** something
+
+### Dashboard Queries
+- User asks **"what's on my dashboard"** or "show me my dashboard"
+- User asks **"what needs my attention"** or "any updates?"
+- User wants a **summary of their widgets' data**
+- User asks about the **status of tracked items** (PRs, usage, etc.)
+
+### Explicit Mentions
+- User mentions **"Glance"** by name
+- User mentions **"widgets"** or **"dashboard"**
+- User asks about **"credentials"** for widget APIs
+
+---
+
+## Prompt Examples
+
+Real phrases users might say that should trigger Glance widget actions:
+
+### Creating Widgets
+- "Show me my GitHub PRs for libra and glance"
+- "Add a weather widget for NYC"
+- "Create a widget tracking my Anthropic API spend"
+- "I want to see my Linear issues on my dashboard"
+- "Can you add a calendar widget?"
+- "Track the open issues on acfranzen/glance"
+- "Show me my Notion tasks"
+
+### Querying Dashboard
+- "What's on my dashboard?"
+- "What needs my attention?"
+- "Give me a status update"
+- "Summarize my widgets"
+- "Any new PRs?"
+- "What does my dashboard show right now?"
+
+### Modifying Widgets
+- "Update the GitHub widget to show closed PRs too"
+- "Change the weather widget to show SF instead of NYC"
+- "Make the PR widget bigger"
+- "Move the GitHub widget to the top right"
+- "Rename the weather widget to 'Local Weather'"
+
+### Deleting Widgets
+- "Delete the clock widget"
+- "Remove the weather widget"
+- "Get rid of the old PR tracker"
+
+### Credential Management
+- "I need to add my GitHub token"
+- "Store my OpenWeather API key"
+- "What credentials do I have set up?"
+- "Delete my old Notion token"
+
+---
+
+## Prerequisites
+
+Before using the Glance Widget SDK:
+
+### 1. Glance Must Be Running
+```bash
+cd ~/projects/glance
+npm run dev
+```
+The server should be accessible at `http://localhost:3000` (or configured port).
+
+### 2. Authentication Token
+All API requests require a Bearer token. Obtain this from:
+- Glance settings page, or
+- Environment variable `GLANCE_API_TOKEN`
+
+```http
+Authorization: Bearer <your-token-here>
+```
+
+### 3. Credentials for Authenticated APIs
+For widgets that access external APIs (GitHub, Anthropic, etc.), store credentials first:
+
+```http
+POST /api/credentials
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "key": "github",
+  "value": "ghp_your_personal_access_token"
+}
+```
+
+**Common credentials needed:**
+
+| Widget Type | Credential Key | How to Get |
+|------------|----------------|------------|
+| GitHub PRs/Issues | `github` | [GitHub Settings → Tokens](https://github.com/settings/tokens) |
+| Anthropic Usage | `anthropic` | [Anthropic Console](https://console.anthropic.com/) |
+| OpenAI Usage | `openai` | [OpenAI API Keys](https://platform.openai.com/api-keys) |
+| Weather | `openweather` | [OpenWeatherMap](https://openweathermap.org/api) |
+| Notion | `notion` | [Notion Integrations](https://www.notion.so/my-integrations) |
+| Linear | `linear` | [Linear Settings → API](https://linear.app/settings/api) |
 
 ---
 
@@ -68,6 +193,117 @@ function Widget() {
     </Card>
   );
 }
+```
+
+---
+
+## Common Workflows
+
+Step-by-step flows for the most common operations.
+
+### Workflow 1: Create a Widget
+
+```
+1. CHECK CREDENTIALS
+   GET /api/credentials
+   → Look for required credential (e.g., "github")
+   → If missing, ask user and POST /api/credentials
+
+2. CREATE WIDGET
+   POST /api/custom-widgets
+   {
+     "name": "GitHub PRs",
+     "slug": "github-prs",
+     "source_code": "function Widget() { ... }",
+     "server_code": "const token = await getCredential('github'); ...",
+     "config": { "owner": "acfranzen", "repo": "libra" }
+   }
+
+3. VERIFY CREATION
+   → Check response status (201 = success)
+   → Confirm widget ID returned
+   → Inform user: "Done! Your GitHub PRs widget is now on the dashboard."
+```
+
+### Workflow 2: Update a Widget
+
+```
+1. GET CURRENT STATE
+   GET /api/custom-widgets/:id
+   → Retrieve current source_code, config, etc.
+
+2. MODIFY AS NEEDED
+   → Update source_code for visual changes
+   → Update server_code for data fetching changes
+   → Update config for setting changes
+   → Update position_x/y for repositioning
+   → Update width/height for resizing
+
+3. PUT CHANGES
+   PUT /api/custom-widgets/:id
+   {
+     "config": { "owner": "acfranzen", "repo": "glance", "show_drafts": true }
+   }
+   → Only include fields being changed
+
+4. CONFIRM
+   → Check response status (200 = success)
+   → Inform user: "Updated! The widget now shows draft PRs too."
+```
+
+### Workflow 3: Read Dashboard for User
+
+```
+1. GET ALL WIDGETS
+   GET /api/custom-widgets
+   → Returns list of widget metadata (id, name, slug, config)
+
+2. GET EACH WIDGET'S DATA
+   For each widget:
+     GET /api/custom-widgets/:id/data
+     → Returns current data state (PRs, weather, usage, etc.)
+
+3. SUMMARIZE FOR USER
+   Combine data into natural language:
+   "Your dashboard shows:
+    - 3 open PRs on libra (newest: 'Add auth' by zeus)
+    - Weather in NYC: 45°F, cloudy
+    - API usage: 62% of monthly limit"
+```
+
+### Workflow 4: Delete a Widget
+
+```
+1. CONFIRM WITH USER (optional but recommended)
+   "Are you sure you want to delete the weather widget?"
+
+2. DELETE
+   DELETE /api/custom-widgets/:id
+   → Returns 204 No Content on success
+
+3. CONFIRM
+   → Inform user: "Done! The weather widget has been removed."
+```
+
+### Workflow 5: Handle Missing Credentials
+
+```
+1. DETECT MISSING CREDENTIAL
+   GET /api/credentials
+   → Required key not in list
+
+2. EXPLAIN TO USER
+   "I need a GitHub personal access token to show your PRs.
+    You can create one at https://github.com/settings/tokens
+    with the 'repo' scope. Paste it here when ready."
+
+3. RECEIVE AND STORE
+   User provides: "ghp_xxxxxxxxxxxx"
+   POST /api/credentials
+   { "key": "github", "value": "ghp_xxxxxxxxxxxx" }
+
+4. CONTINUE WITH ORIGINAL TASK
+   Now create the widget as requested.
 ```
 
 ---
@@ -1079,6 +1315,170 @@ try {
 
 ---
 
+## Output Format
+
+Understanding API response structures is critical for parsing and handling data correctly.
+
+### Success Response: Create Widget
+
+```json
+{
+  "id": "cuid_abc123xyz",
+  "name": "GitHub PRs",
+  "slug": "github-prs",
+  "source_code": "function Widget() { ... }",
+  "server_code": "const token = await getCredential('github'); ...",
+  "config": {
+    "owner": "acfranzen",
+    "repo": "libra"
+  },
+  "position_x": 0,
+  "position_y": 0,
+  "width": 1,
+  "height": 1,
+  "created_at": "2026-02-01T12:00:00.000Z",
+  "updated_at": "2026-02-01T12:00:00.000Z"
+}
+```
+
+### Success Response: List Widgets
+
+```json
+{
+  "widgets": [
+    {
+      "id": "cuid_abc123",
+      "name": "GitHub PRs",
+      "slug": "github-prs",
+      "config": { "owner": "acfranzen", "repo": "libra" },
+      "position_x": 0,
+      "position_y": 0,
+      "width": 1,
+      "height": 1,
+      "created_at": "2026-02-01T12:00:00.000Z",
+      "updated_at": "2026-02-01T12:00:00.000Z"
+    },
+    {
+      "id": "cuid_def456",
+      "name": "Weather",
+      "slug": "weather-nyc",
+      "config": { "city": "New York" },
+      "position_x": 1,
+      "position_y": 0,
+      "width": 1,
+      "height": 1,
+      "created_at": "2026-02-01T12:00:00.000Z",
+      "updated_at": "2026-02-01T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+### Success Response: Widget Data
+
+```json
+{
+  "widget_id": "cuid_abc123",
+  "data": {
+    "prs": [
+      {
+        "number": 142,
+        "title": "Add credential management",
+        "author": "zeus",
+        "state": "open",
+        "created_at": "2026-01-30T10:00:00.000Z"
+      },
+      {
+        "number": 139,
+        "title": "Fix widget rendering",
+        "author": "acfranzen",
+        "state": "open",
+        "created_at": "2026-01-28T14:30:00.000Z"
+      }
+    ],
+    "fetchedAt": "2026-02-01T12:00:00.000Z"
+  },
+  "last_updated": "2026-02-01T12:00:00.000Z",
+  "error": null
+}
+```
+
+### Success Response: List Credentials
+
+```json
+{
+  "credentials": [
+    { "key": "github", "created_at": "2026-02-01T12:00:00.000Z" },
+    { "key": "anthropic", "created_at": "2026-02-01T12:00:00.000Z" },
+    { "key": "openweather", "created_at": "2026-02-01T12:00:00.000Z" }
+  ]
+}
+```
+
+### Error Response: Validation Error
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Widget slug already exists",
+    "details": {
+      "field": "slug",
+      "value": "github-prs"
+    }
+  }
+}
+```
+
+### Error Response: Not Found
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Widget not found"
+  }
+}
+```
+
+### Error Response: Unauthorized
+
+```json
+{
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "Invalid or missing authentication token"
+  }
+}
+```
+
+### Error Response: Widget Data with Error
+
+When a widget's server code fails:
+
+```json
+{
+  "widget_id": "cuid_abc123",
+  "data": null,
+  "last_updated": "2026-02-01T12:00:00.000Z",
+  "error": {
+    "code": "RATE_LIMITED",
+    "message": "GitHub API rate limit exceeded",
+    "retryAfter": 3600
+  }
+}
+```
+
+### Parsing Tips for Agents
+
+1. **Always check for `error` field first** - If present, handle the error
+2. **Use optional chaining** - Response structures may vary: `response?.widgets?.[0]`
+3. **Check HTTP status codes** - 2xx = success, 4xx = client error, 5xx = server error
+4. **Handle empty arrays** - `widgets: []` and `credentials: []` are valid success responses
+5. **Parse dates** - All timestamps are ISO 8601 format
+
+---
+
 ## Full API Reference
 
 ### Widget Endpoints
@@ -1130,6 +1530,118 @@ try {
   }
 }
 ```
+
+---
+
+## Best Practices
+
+### Credential Management
+
+1. **Always check credentials first**
+   ```
+   GET /api/credentials → Check if required key exists
+   If missing → Ask user, don't fail silently
+   ```
+
+2. **Provide clear credential instructions**
+   - Explain what the credential is for
+   - Provide the exact URL where they can get it
+   - Mention required scopes/permissions
+   - Example: "I need a GitHub token with `repo` scope. Create one at https://github.com/settings/tokens"
+
+3. **Never log or expose credential values**
+   - Only reference by key name
+   - Use `getCredential()` in server code only
+
+### Widget Naming
+
+1. **Use descriptive names**
+   - ✅ "Libra GitHub PRs"
+   - ✅ "NYC Weather"
+   - ❌ "Widget 1"
+   - ❌ "My Widget"
+
+2. **Use consistent slug patterns**
+   - Format: `{source}-{type}[-{qualifier}]`
+   - Examples: `github-prs-libra`, `weather-nyc`, `anthropic-usage`
+
+3. **Include context in config**
+   ```json
+   {
+     "config": {
+       "owner": "acfranzen",
+       "repo": "libra",
+       "show_drafts": false
+     }
+   }
+   ```
+
+### Widget Sizing
+
+Default sizes that work well:
+
+| Widget Type | Recommended Size | Notes |
+|------------|-----------------|-------|
+| Simple stat | `1x1` | Single number/metric |
+| List (5 items) | `1x1` | PRs, issues, tasks |
+| List (10+ items) | `1x2` or `2x1` | Longer lists need space |
+| Chart/Graph | `2x2` | Visualizations need room |
+| Weather | `1x1` | Compact info |
+| Calendar | `2x2` | Multiple events |
+
+### Error Handling
+
+1. **Handle missing credentials gracefully**
+   ```tsx
+   if (error?.code === 'CREDENTIAL_MISSING') {
+     return <HelpfulMessage explaining="how to add the credential" />;
+   }
+   ```
+
+2. **Always provide retry options**
+   ```tsx
+   <ErrorDisplay message={error.message} retry={refresh} />
+   ```
+
+3. **Use appropriate error variants**
+   - Missing credential → Lock icon + instructions
+   - Rate limit → Clock icon + wait time
+   - Network error → Retry button
+   - Unknown error → Generic message + retry
+
+4. **Log errors in server code**
+   ```javascript
+   console.error('[widget-name] API error:', response.status);
+   ```
+
+### User Communication
+
+1. **Confirm actions**
+   - After create: "Done! Your GitHub PRs widget is now on the dashboard."
+   - After update: "Updated! The widget now shows draft PRs too."
+   - After delete: "Removed the weather widget from your dashboard."
+
+2. **Be proactive with updates**
+   - On heartbeats, check widget data
+   - Surface notable changes: "You have 2 new PRs since yesterday"
+
+3. **Ask before destructive actions**
+   - "Are you sure you want to delete the weather widget?"
+
+### Performance
+
+1. **Minimize API calls**
+   - Batch credential checks when creating multiple widgets
+   - Use widget data endpoint instead of re-executing when possible
+
+2. **Use appropriate refresh intervals**
+   - GitHub PRs: Every 5-15 minutes
+   - Weather: Every 30-60 minutes
+   - API usage: Every hour
+
+3. **Cache when possible**
+   - Server code can return `fetchedAt` timestamps
+   - Skip refresh if data is recent enough
 
 ---
 
