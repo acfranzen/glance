@@ -206,6 +206,59 @@ const { data, loading, error } = useData();
 
 **Blocked:** `require`, `import`, `eval`, `process`, `fs`, `child_process`
 
+## Built-in Widgets
+
+### Claude Max Usage Widget
+
+The Claude Max widget displays your Claude Max subscription usage (session, weekly, extra usage).
+
+**⚠️ Requires OpenClaw PTY:** The Claude CLI needs an interactive terminal to display usage data. Glance cannot capture this directly — OpenClaw must do the PTY capture and push data to Glance.
+
+**How it works:**
+
+1. OpenClaw spawns Claude CLI with `pty: true`
+2. Sends `/status` command, navigates to Usage tab
+3. Parses the output and writes to `/tmp/claude-usage-cache.json`
+4. Glance reads from cache via `GET /api/widgets/claude-max/data`
+
+**OpenClaw PTY capture example:**
+
+```javascript
+// In OpenClaw - use exec with pty: true
+const session = await exec({
+  command: '/opt/homebrew/bin/claude --dangerously-skip-permissions',
+  pty: true,
+  yieldMs: 5000
+});
+
+// Send /status and navigate to Usage tab
+await process.write(session.id, '/status\n');
+await sleep(1000);
+await process.sendKeys(session.id, ['Right', 'Right']); // Navigate to Usage tab
+await sleep(1000);
+
+// Capture output, parse, and POST to Glance
+const log = await process.log(session.id);
+const usage = parseClaudeUsage(log); // Strip ANSI, extract percentages
+
+await fetch('http://localhost:3333/api/widgets/claude-max/data', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(usage)
+});
+```
+
+**Cache file format** (`/tmp/claude-usage-cache.json`):
+```json
+{
+  "session": { "percentUsed": 42, "resetsAt": "6pm EST" },
+  "weekAll": { "percentUsed": 100, "resetsAt": "1pm EST" },
+  "weekOpus": { "percentUsed": 2, "resetsAt": "Feb 6, 11am" },
+  "extra": { "spent": 86.11, "limit": 100, "percentUsed": 86, "resetsAt": "Mar 1" },
+  "capturedAt": "2026-02-02T23:59:00.000Z"
+}
+```
+
 ## Full Documentation
 
 Component props, styling, and advanced patterns: [docs/widget-sdk.md](docs/widget-sdk.md)
