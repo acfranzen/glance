@@ -164,6 +164,8 @@ return { items: results.flat(), fetchedAt: new Date().toISOString() };
 
 ## Available Components
 
+Components are from [shadcn/ui](https://ui.shadcn.com/docs/components) — see their docs for full prop references.
+
 Layout: `Card`, `CardHeader`, `CardContent`, `CardFooter`, `CardTitle`, `CardDescription`, `Stack`, `Grid`
 
 Data: `Stat`, `Progress`, `Badge`, `List`, `Avatar`
@@ -174,13 +176,29 @@ Form: `Button`, `Input`, `Label`, `Switch`
 
 Other: `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`, `Tooltip`, `Separator`
 
-Icons: `Icons.GitPullRequest`, `Icons.Clock`, `Icons.Check`, `Icons.AlertCircle`, etc.
+### Icons
+
+Subset of [Lucide React](https://lucide.dev/icons/) icons. **Only these are available:**
+
+`Activity`, `AlertCircle`, `AlertTriangle`, `ArrowDown`, `ArrowUp`, `BarChart2`, `Check`, `ChevronRight`, `Clock`, `Code`, `Coffee`, `Copy`, `Download`, `Edit`, `ExternalLink`, `Eye`, `EyeOff`, `FileText`, `GitPullRequest`, `Globe`, `Heart`, `Home`, `Info`, `Loader2`, `Lock`, `Mail`, `MessageSquare`, `Minus`, `MoreHorizontal`, `MoreVertical`, `Package`, `Plus`, `RefreshCw`, `Search`, `Settings`, `Star`, `Trash`, `TrendingDown`, `TrendingUp`, `Unlock`, `Upload`, `User`, `X`, `Zap`
+
+Usage: `<Icons.Globe className="h-4 w-4" />`
 
 ## Available Hooks
 
-- `useData(provider, query)` — fetch data (routes through server code when `server_code_enabled: true`)
+- `useData(provider, query)` — fetch data **(both args required, even with server code)**
 - `useConfig()` — access widget config (set on widget instance)
 - `useWidgetState(key, default)` — persistent widget state
+
+**⚠️ useData requires both arguments:**
+```tsx
+// ✅ Correct
+const { data, loading, error } = useData('github', {});
+const { data, loading, error } = useData('vercel', { endpoint: '/deployments' });
+
+// ❌ Wrong - throws error
+const { data, loading, error } = useData();
+```
 
 ## Server Code Rules
 
