@@ -206,6 +206,66 @@ Glance runs entirely on your machine:
 
 ---
 
+## 🌍 Access Your Dashboard Anywhere
+
+Glance runs locally, but you can securely access it from anywhere using a private network or tunnel.
+
+### Option A: Tailscale (Recommended)
+
+[Tailscale](https://tailscale.com) creates a private network between your devices — no port forwarding, no configuration.
+
+1. **Install Tailscale** on your Glance server and your phone/laptop
+2. **Start Glance** with network binding:
+   ```bash
+   npm run dev -- -H 0.0.0.0
+   ```
+3. **Access via Tailscale IP**: `http://100.x.x.x:3333`
+
+Find your Tailscale IP with `tailscale ip -4`. Add it to your bookmarks and you're done.
+
+> **Tip**: Tailscale is free for personal use (up to 100 devices).
+
+### Option B: Cloudflare Tunnel
+
+[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) exposes your dashboard via a custom domain with automatic HTTPS.
+
+```bash
+# Install cloudflared
+brew install cloudflare/cloudflare/cloudflared
+
+# Authenticate and create tunnel
+cloudflared tunnel login
+cloudflared tunnel create glance
+
+# Run the tunnel
+cloudflared tunnel route dns glance glance.yourdomain.com
+cloudflared tunnel run --url http://localhost:3333 glance
+```
+
+Access at `https://glance.yourdomain.com`. Cloudflare handles SSL and DDoS protection.
+
+### Option C: SSH Tunnel (Quick & Dirty)
+
+If you just need temporary access from another machine:
+
+```bash
+# On your laptop/remote machine
+ssh -L 3333:localhost:3333 user@your-server
+
+# Then open http://localhost:3333 in your browser
+```
+
+### Security Notes
+
+- **Always use AUTH_TOKEN** when exposing Glance to a network:
+  ```bash
+  AUTH_TOKEN=your-secret-token npm run dev -- -H 0.0.0.0
+  ```
+- **Never expose port 3333 directly to the internet** without authentication
+- Tailscale and Cloudflare Tunnel both provide secure access without opening firewall ports
+
+---
+
 ## 🌐 OpenClaw Community
 
 Glance is built for the [OpenClaw](https://openclaw.ai) community. Find more skills at [clawhub.com](https://clawhub.com).
