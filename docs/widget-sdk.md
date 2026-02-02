@@ -855,7 +855,9 @@ Response: "Your dashboard shows:
 
 ## Components
 
-All components are pre-imported and available in the widget sandbox.
+All components are pre-imported and available in the widget sandbox. Most components are from [shadcn/ui](https://ui.shadcn.com/docs/components) — see their documentation for full prop references and examples.
+
+**Full component docs:** [ui.shadcn.com/docs/components](https://ui.shadcn.com/docs/components)
 
 ### Layout Components
 
@@ -1103,7 +1105,7 @@ Visual divider.
 
 ### useData
 
-Fetch data from a configured data provider.
+Fetch data from a configured data provider. **Both arguments are required.**
 
 ```tsx
 const { data, loading, error, refresh } = useData<ResponseType>(
@@ -1112,10 +1114,20 @@ const { data, loading, error, refresh } = useData<ResponseType>(
 );
 ```
 
+**⚠️ Important:** Always pass both arguments, even when using server code:
+```tsx
+// ✅ Correct - both arguments provided
+const { data, loading, error } = useData('github', {});
+const { data, loading, error } = useData('github', { endpoint: '/pulls' });
+
+// ❌ Wrong - will throw "Cannot read properties of undefined"
+const { data, loading, error } = useData();
+```
+
 Parameters:
 
-- `provider`: string - The data provider slug (e.g., `'github'`, `'anthropic'`)
-- `query`: object
+- `provider`: string **(required)** - The data provider slug (e.g., `'github'`, `'anthropic'`, `'vercel'`)
+- `query`: object **(required, can be empty `{}`)** - Query configuration
   - `endpoint`: string - API endpoint path
   - `params`: object - Query parameters
   - `method`: `'GET'` | `'POST'` (default: `'GET'`)
@@ -1226,14 +1238,16 @@ function Widget() {
 
 ## Icons
 
-A curated set of Lucide icons is available via the `Icons` object:
+A curated subset of [Lucide React](https://lucide.dev/icons/) icons is available via the `Icons` object. Only the icons listed below are available in the widget sandbox — if you need an icon not in this list, use one with similar meaning.
 
 ```tsx
 <Icons.GitPullRequest className="h-4 w-4" />
 <Icons.Clock className="h-4 w-4 text-muted-foreground" />
 ```
 
-Available icons:
+**Full icon reference:** [lucide.dev/icons](https://lucide.dev/icons/)
+
+Available icons (sandbox subset):
 
 | Icon           | Name                   |
 | -------------- | ---------------------- |
