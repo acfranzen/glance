@@ -14,6 +14,22 @@ Tell OpenClaw _"show me my GitHub PRs"_ and watch it build the widget. Ask _"wha
 
 ---
 
+## 🤖 AI Agents: Start Here
+
+If you're an AI agent (OpenClaw, Cursor, Claude, etc.), read these files:
+
+| File | Purpose |
+|------|---------|
+| **[SKILL.md](SKILL.md)** | Quick reference (~200 lines) — API workflow, code patterns, essential info |
+| **[docs/widget-sdk.md](docs/widget-sdk.md)** | Full documentation — components, hooks, examples, error handling |
+
+**TL;DR workflow:**
+1. `POST /api/credentials` — Store API keys (provider, name, value)
+2. `POST /api/custom-widgets` — Create widget definition (source_code, server_code)
+3. `POST /api/widgets` — Add widget instance to dashboard
+
+---
+
 ## 🚀 Quick Start with OpenClaw
 
 ### 1. Install Glance
@@ -137,34 +153,40 @@ No `.env` files. No copy-pasting tokens. No configuration circus. It just works.
 
 ## 🔧 API Reference (For OpenClaw)
 
-### Widget API
+### Widget Definition API
 
-| Method   | Endpoint                          | Description                                  |
-| -------- | --------------------------------- | -------------------------------------------- |
-| `POST`   | `/api/custom-widgets`             | Create a widget (JSX + optional server code) |
-| `GET`    | `/api/custom-widgets`             | List all widgets                             |
-| `GET`    | `/api/custom-widgets/:id`         | Get widget details                           |
-| `PUT`    | `/api/custom-widgets/:id`         | Update a widget                              |
-| `DELETE` | `/api/custom-widgets/:id`         | Remove a widget                              |
-| `GET`    | `/api/custom-widgets/:id/data`    | Get widget's current data                    |
-| `POST`   | `/api/custom-widgets/:id/execute` | Run widget's server code                     |
+| Method   | Endpoint                             | Description                      |
+| -------- | ------------------------------------ | -------------------------------- |
+| `POST`   | `/api/custom-widgets`                | Create widget definition         |
+| `GET`    | `/api/custom-widgets`                | List all widget definitions      |
+| `GET`    | `/api/custom-widgets/:slug`          | Get widget definition            |
+| `PATCH`  | `/api/custom-widgets/:slug`          | Update widget definition         |
+| `DELETE` | `/api/custom-widgets/:slug`          | Delete widget definition         |
+| `POST`   | `/api/custom-widgets/:slug/execute`  | Execute server code              |
+
+### Widget Instance API
+
+| Method   | Endpoint            | Description                  |
+| -------- | ------------------- | ---------------------------- |
+| `POST`   | `/api/widgets`      | Add widget to dashboard      |
+| `GET`    | `/api/widgets`      | List dashboard widgets       |
+| `PATCH`  | `/api/widgets/:id`  | Update widget instance       |
+| `DELETE` | `/api/widgets/:id`  | Remove from dashboard        |
 
 ### Credential API
 
-| Method   | Endpoint                | Description                    |
-| -------- | ----------------------- | ------------------------------ |
-| `POST`   | `/api/credentials`      | Store a credential (encrypted) |
-| `GET`    | `/api/credentials`      | List credential keys           |
-| `GET`    | `/api/credentials/:key` | Retrieve a credential          |
-| `DELETE` | `/api/credentials/:key` | Remove a credential            |
+| Method   | Endpoint               | Description                    |
+| -------- | ---------------------- | ------------------------------ |
+| `POST`   | `/api/credentials`     | Store a credential (encrypted) |
+| `GET`    | `/api/credentials`     | List credentials + status      |
+| `GET`    | `/api/credentials/:id` | Get credential metadata        |
+| `DELETE` | `/api/credentials/:id` | Delete a credential            |
 
 ### Widget SDK Components
 
 OpenClaw can use these components when creating widgets:
 
-`Card`, `Badge`, `Progress`, `Stat`, `Skeleton`, `Button`, `List`, `Avatar`, `Separator`, `ScrollArea`
-
-All components are from [shadcn/ui](https://ui.shadcn.com) — accessible via the `SDK` namespace.
+`Card`, `Badge`, `Progress`, `Stat`, `List`, `Avatar`, `Button`, `Input`, `Switch`, `Tabs`, `Tooltip`, `Separator`
 
 📖 **[Full Widget SDK Documentation →](docs/widget-sdk.md)**
 
