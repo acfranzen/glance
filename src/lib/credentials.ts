@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import db from "./db";
+import { getDatabase } from "./db";
 
 // Credential types
 export interface Credential {
@@ -61,22 +61,30 @@ export const PROVIDERS = {
 
 export type Provider = keyof typeof PROVIDERS;
 
-// Initialize credentials table
-db.exec(`
-  CREATE TABLE IF NOT EXISTS credentials (
-    id TEXT PRIMARY KEY,
-    provider TEXT NOT NULL,
-    name TEXT NOT NULL,
-    encrypted_value TEXT NOT NULL,
-    iv TEXT NOT NULL,
-    auth_tag TEXT NOT NULL,
-    metadata TEXT NOT NULL DEFAULT '{}',
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
-  );
+// Lazy-initialized - credentials table will be created on first use
+let _initialized = false;
 
-  CREATE INDEX IF NOT EXISTS idx_credentials_provider ON credentials(provider);
-`);
+function ensureInitialized() {
+  if (_initialized) return;
+  
+  const db = getDatabase();
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS credentials (
+      id TEXT PRIMARY KEY,
+      provider TEXT NOT NULL,
+      name TEXT NOT NULL,
+      encrypted_value TEXT NOT NULL,
+      iv TEXT NOT NULL,
+      auth_tag TEXT NOT NULL,
+      metadata TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_credentials_provider ON credentials(provider);
+  `);
+  _initialized = true;
+}
 
 // Encryption constants
 const ALGORITHM = "aes-256-gcm";
@@ -193,27 +201,39 @@ function decrypt(encrypted: string, iv: string, authTag: string): string {
   return decrypted;
 }
 
-// Prepared statements
-const stmts = {
-  getAll: db.prepare(
-    "SELECT id, provider, name, metadata, created_at, updated_at FROM credentials ORDER BY provider, name",
-  ),
-  getById: db.prepare("SELECT * FROM credentials WHERE id = ?"),
-  getByProvider: db.prepare(
-    "SELECT * FROM credentials WHERE provider = ? ORDER BY created_at DESC LIMIT 1",
-  ),
-  getAllByProvider: db.prepare("SELECT * FROM credentials WHERE provider = ?"),
-  insert: db.prepare(`
-    INSERT INTO credentials (id, provider, name, encrypted_value, iv, auth_tag, metadata)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `),
-  update: db.prepare(`
-    UPDATE credentials 
-    SET name = ?, encrypted_value = ?, iv = ?, auth_tag = ?, metadata = ?, updated_at = datetime('now')
-    WHERE id = ?
-  `),
-  delete: db.prepare("DELETE FROM credentials WHERE id = ?"),
-};
+// Lazy-initialized prepared statements
+let _stmts: ReturnType<typeof createStatements> | null = null;
+
+function createStatements() {
+  const db = getDatabase();
+  return {
+    getAll: db.prepare(
+      "SELECT id, provider, name, metadata, created_at, updated_at FROM credentials ORDER BY provider, name",
+    ),
+    getById: db.prepare("SELECT * FROM credentials WHERE id = ?"),
+    getByProvider: db.prepare(
+      "SELECT * FROM credentials WHERE provider = ? ORDER BY created_at DESC LIMIT 1",
+    ),
+    getAllByProvider: db.prepare("SELECT * FROM credentials WHERE provider = ?"),
+    insert: db.prepare(`
+      INSERT INTO credentials (id, provider, name, encrypted_value, iv, auth_tag, metadata)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `),
+    update: db.prepare(`
+      UPDATE credentials 
+      SET name = ?, encrypted_value = ?, iv = ?, auth_tag = ?, metadata = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `),
+    delete: db.prepare("DELETE FROM credentials WHERE id = ?"),
+  };
+}
+
+function getStmts() {
+  ensureInitialized();
+  if (_stmts) return _stmts;
+  _stmts = createStatements();
+  return _stmts;
+}
 
 /**
  * Generate a unique credential ID
@@ -226,7 +246,7 @@ function generateId(): string {
  * List all credentials (without decrypted values)
  */
 export function listCredentials(): Credential[] {
-  const rows = stmts.getAll.all() as Array<{
+  const rows = getStmts().getAll.all() as Array<{
     id: string;
     provider: string;
     name: string;
@@ -249,7 +269,7 @@ export function listCredentials(): Credential[] {
  * Get a specific credential by ID (without decrypted value)
  */
 export function getCredentialById(id: string): Credential | null {
-  const row = stmts.getById.get(id) as CredentialRow | undefined;
+  const row = getStmts().getById.get(id) as CredentialRow | undefined;
   if (!row) return null;
 
   return {
@@ -268,7 +288,7 @@ export function getCredentialById(id: string): Credential | null {
  */
 export function getCredential(provider: Provider): string | null {
   try {
-    const row = stmts.getByProvider.get(provider) as CredentialRow | undefined;
+    const row = getStmts().getByProvider.get(provider) as CredentialRow | undefined;
 
     if (row) {
       return decrypt(row.encrypted_value, row.iv, row.auth_tag);
@@ -298,7 +318,7 @@ export function getCredential(provider: Provider): string | null {
  * Get decrypted credential value by ID
  */
 export function getCredentialValue(id: string): string | null {
-  const row = stmts.getById.get(id) as CredentialRow | undefined;
+  const row = getStmts().getById.get(id) as CredentialRow | undefined;
   if (!row) return null;
 
   return decrypt(row.encrypted_value, row.iv, row.auth_tag);
@@ -316,7 +336,7 @@ export function createCredential(
   const id = generateId();
   const { encrypted, iv, authTag } = encrypt(value);
 
-  stmts.insert.run(
+  getStmts().insert.run(
     id,
     provider,
     name,
@@ -345,12 +365,12 @@ export function updateCredential(
   value: string,
   metadata: Record<string, unknown> = {},
 ): boolean {
-  const existing = stmts.getById.get(id) as CredentialRow | undefined;
+  const existing = getStmts().getById.get(id) as CredentialRow | undefined;
   if (!existing) return false;
 
   const { encrypted, iv, authTag } = encrypt(value);
 
-  stmts.update.run(name, encrypted, iv, authTag, JSON.stringify(metadata), id);
+  getStmts().update.run(name, encrypted, iv, authTag, JSON.stringify(metadata), id);
   return true;
 }
 
@@ -358,7 +378,7 @@ export function updateCredential(
  * Delete a credential
  */
 export function deleteCredential(id: string): boolean {
-  const result = stmts.delete.run(id);
+  const result = getStmts().delete.run(id);
   return result.changes > 0;
 }
 
@@ -366,7 +386,7 @@ export function deleteCredential(id: string): boolean {
  * Check if a provider has a configured credential
  */
 export function hasCredential(provider: Provider): boolean {
-  const row = stmts.getByProvider.get(provider) as CredentialRow | undefined;
+  const row = getStmts().getByProvider.get(provider) as CredentialRow | undefined;
   if (row) return true;
 
   // Check env fallback
@@ -495,7 +515,7 @@ export function getCredentialStatus(): Record<
   > = {};
 
   for (const provider of Object.keys(PROVIDERS) as Provider[]) {
-    const row = stmts.getByProvider.get(provider) as CredentialRow | undefined;
+    const row = getStmts().getByProvider.get(provider) as CredentialRow | undefined;
 
     if (row) {
       status[provider] = { configured: true, source: "database" };
