@@ -9,7 +9,7 @@
     <array>
         <string>/bin/sh</string>
         <string>-c</string>
-        <string>cd "__GLANCE_DIR__" && /usr/local/bin/pnpm dev</string>
+        <string>cd "__GLANCE_DIR__" && __PNPM_PATH__ dev</string>
     </array>
     
     <key>WorkingDirectory</key>

@@ -26,8 +26,9 @@ if [ ! -f "$PLIST_TEMPLATE" ]; then
     exit 1
 fi
 
-# Check if pnpm is available
-if ! command -v pnpm &> /dev/null; then
+# Check if pnpm is available and get its path
+PNPM_PATH="$(command -v pnpm 2>/dev/null)"
+if [ -z "$PNPM_PATH" ]; then
     echo "❌ Error: pnpm is not installed. Please install it first:"
     echo "   npm install -g pnpm"
     exit 1
@@ -41,6 +42,7 @@ if [ ! -f "$GLANCE_DIR/package.json" ]; then
 fi
 
 echo "📁 Glance directory: $GLANCE_DIR"
+echo "📦 pnpm path: $PNPM_PATH"
 echo "📝 Log directory: $LOG_DIR"
 echo ""
 
@@ -61,6 +63,7 @@ fi
 echo "📝 Generating plist configuration..."
 sed -e "s|__GLANCE_DIR__|$GLANCE_DIR|g" \
     -e "s|__HOME__|$HOME|g" \
+    -e "s|__PNPM_PATH__|$PNPM_PATH|g" \
     "$PLIST_TEMPLATE" > "$LAUNCH_AGENTS_DIR/$PLIST_NAME"
 
 echo "✅ Installed plist to $LAUNCH_AGENTS_DIR/$PLIST_NAME"
