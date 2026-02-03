@@ -20,11 +20,11 @@ export function DashboardHeader() {
     <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-40">
       <div className="flex items-center justify-between h-16 px-4 md:px-6">
         {/* Logo */}
-        <div className="flex items-center gap-4">
-          <h1 className="font-serif text-2xl font-bold text-foreground">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          <h1 className="font-serif text-xl sm:text-2xl font-bold text-foreground flex-shrink-0">
             Glance
           </h1>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground hidden sm:inline truncate">
             Your personal dashboard
           </span>
         </div>

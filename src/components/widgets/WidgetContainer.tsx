@@ -34,15 +34,15 @@ export function WidgetContainer({
   return (
     <Card className={cn('h-full flex flex-col overflow-hidden shadow-sm hover:shadow-md transition-shadow', className)}>
       {showHeader && (
-        <CardHeader className={cn('pb-2 pt-3 px-4 flex-none', headerClassName)}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+        <CardHeader className={cn('pb-2 pt-3 px-3 sm:px-4 flex-none', headerClassName)}>
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               {isEditing && (
-                <div className="cursor-move p-1 -ml-1 rounded hover:bg-accent transition-colors">
+                <div className="cursor-move p-1 -ml-1 rounded hover:bg-accent transition-colors flex-shrink-0">
                   <GripVertical className="h-4 w-4 text-muted-foreground" />
                 </div>
               )}
-              <CardTitle className="text-sm font-medium">{title}</CardTitle>
+              <CardTitle className="text-sm font-medium truncate">{title}</CardTitle>
             </div>
             <div className="flex items-center gap-1">
               {!isEditing && action}
@@ -76,7 +76,7 @@ export function WidgetContainer({
           </div>
         </CardHeader>
       )}
-      <CardContent className={cn('flex-1 px-4 pb-4 overflow-auto', !showHeader && 'pt-4', contentClassName)}>
+      <CardContent className={cn('flex-1 px-3 sm:px-4 pb-3 sm:pb-4 overflow-auto break-words', !showHeader && 'pt-3 sm:pt-4', contentClassName)}>
         {children}
       </CardContent>
     </Card>

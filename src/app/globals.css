@@ -182,3 +182,35 @@
   right: 0;
   cursor: se-resize;
 }
+
+/* Mobile responsive improvements */
+@media (max-width: 639px) {
+  .react-grid-layout {
+    /* Ensure grid takes full width on mobile */
+    width: 100% !important;
+  }
+
+  .react-grid-item {
+    /* Ensure items don't overflow on mobile */
+    max-width: 100%;
+  }
+
+  /* Disable resize handles on mobile */
+  .react-grid-item > .react-resizable-handle {
+    display: none;
+  }
+
+  /* Ensure text doesn't overflow */
+  .react-grid-item * {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .react-grid-item > .react-resizable-handle::after {
+    width: 6px;
+    height: 6px;
+  }
+}
