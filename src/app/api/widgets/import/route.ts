@@ -28,15 +28,19 @@ const execAsync = promisify(exec);
 
 interface CredentialStatus {
   id: string;
-  type: "api_key" | "local_software" | "oauth";
+  type: "api_key" | "local_software" | "oauth" | "agent";
   name: string;
-  status: "configured" | "missing" | "installed" | "not_installed";
+  status: "configured" | "missing" | "installed" | "not_installed" | "agent_required";
   description: string;
   obtain_url?: string;
   obtain_instructions?: string;
   install_url?: string;
   install_instructions?: string;
   check_command?: string;
+  // Agent credential fields
+  agent_tool?: string;
+  agent_auth_check?: string;
+  agent_auth_instructions?: string;
 }
 
 interface SetupStatus {
@@ -140,6 +144,19 @@ async function checkCredentials(
         install_url: cred.install_url,
         install_instructions: cred.install_instructions,
         check_command: cred.check_command,
+      });
+    } else if (cred.type === "agent") {
+      // Agent credentials can't be verified by Glance server-side
+      // They require the OpenClaw agent to have the tool authenticated
+      statuses.push({
+        id: cred.id,
+        type: cred.type,
+        name: cred.name,
+        status: "agent_required",
+        description: cred.description,
+        agent_tool: cred.agent_tool,
+        agent_auth_check: cred.agent_auth_check,
+        agent_auth_instructions: cred.agent_auth_instructions,
       });
     }
   }
@@ -319,6 +336,11 @@ export async function POST(request: NextRequest) {
       (c) => c.status === "missing" || c.status === "not_installed",
     );
 
+    // Agent credentials require OpenClaw agent to have the tool authenticated
+    const agentCredentials = credentialStatuses.filter(
+      (c) => c.status === "agent_required",
+    );
+
     // Setup not configured is a warning for dry_run, but widget can still be imported
     if (setupStatus.status === "not_configured" && !dry_run) {
       // Not blocking - widget can be imported, setup done later
@@ -331,9 +353,20 @@ export async function POST(request: NextRequest) {
     if (missingCredentials.length > 0) {
       message = `Widget can be imported. ${missingCredentials.length} credential(s) need to be configured.`;
     }
+    if (agentCredentials.length > 0) {
+      const agentTools = agentCredentials
+        .map(c => c.agent_tool || c.name)
+        .join(", ");
+      message += ` Requires ${agentTools} on OpenClaw agent.`;
+    }
     if (setupStatus.status === "not_configured") {
       message += " Local setup is required for full functionality.";
     }
+
+    // Build agent credential warnings
+    const agentWarnings = agentCredentials.map(c => 
+      `This widget requires ${c.agent_tool || c.name} authenticated on your OpenClaw agent${c.agent_auth_check ? ` (check: ${c.agent_auth_check})` : ""}`
+    );
 
     const response: ImportResponse = {
       valid: true,
@@ -352,7 +385,7 @@ export async function POST(request: NextRequest) {
       message,
       validation: {
         errors: validation.errors,
-        warnings: validation.warnings,
+        warnings: [...validation.warnings, ...agentWarnings],
       },
     };
 
