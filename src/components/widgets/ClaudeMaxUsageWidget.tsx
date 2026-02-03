@@ -5,32 +5,83 @@ import { Zap, AlertCircle, RefreshCw, Clock, DollarSign } from 'lucide-react';
 import type { Widget } from '@/types/api';
 
 interface ClaudeMaxUsageData {
-  session: {
-    percentUsed: number;
-    resetsAt: string;
+  session?: {
+    percentUsed?: number;
+    resetsAt?: string | null;
   };
-  weekAll: {
-    percentUsed: number;
-    resetsAt: string;
+  weekAll?: {
+    percentUsed?: number;
+    resetsAt?: string | null;
   };
-  weekSonnet: {
-    percentUsed: number;
-    resetsAt: string;
+  weekSonnet?: {
+    percentUsed?: number;
+    resetsAt?: string | null;
   };
   extra?: {
-    spent: number;
-    limit: number;
-    percentUsed: number;
-    resetsAt: string;
+    spent?: number | string; // Can be number or formatted string like "$165.84 / $200.00"
+    limit?: number;
+    percentUsed?: number;
+    resetsAt?: string | null;
   };
-  capturedAt: string;
-  lastUpdated: string;
+  capturedAt?: string;
+  lastUpdated?: string;
   error?: string;
   isDemo?: boolean;
 }
 
 interface ClaudeMaxUsageWidgetProps {
   widget?: Widget;
+}
+
+/**
+ * Safely get a numeric percentage, with fallback
+ */
+function safePercent(value: unknown, fallback = 0): number {
+  if (typeof value === 'number' && !isNaN(value)) {
+    return Math.max(0, Math.min(value, 100));
+  }
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value);
+    if (!isNaN(parsed)) return Math.max(0, Math.min(parsed, 100));
+  }
+  return fallback;
+}
+
+/**
+ * Format the "spent" field which can be:
+ * - A number (e.g., 165.84)
+ * - A formatted string (e.g., "$165.84 / $200.00")
+ * - Undefined/null
+ */
+function formatSpent(spent: unknown, limit: unknown): string {
+  // If spent is already a formatted string, use it directly
+  if (typeof spent === 'string' && spent.includes('/')) {
+    return spent;
+  }
+  
+  // If spent is a number, format it with limit
+  if (typeof spent === 'number' && !isNaN(spent)) {
+    const spentStr = `$${spent.toFixed(2)}`;
+    if (typeof limit === 'number' && !isNaN(limit)) {
+      return `${spentStr} / $${limit.toFixed(2)}`;
+    }
+    return `${spentStr} spent`;
+  }
+  
+  // If spent is a numeric string
+  if (typeof spent === 'string') {
+    const parsed = parseFloat(spent.replace(/[$,]/g, ''));
+    if (!isNaN(parsed)) {
+      const spentStr = `$${parsed.toFixed(2)}`;
+      if (typeof limit === 'number' && !isNaN(limit)) {
+        return `${spentStr} / $${limit.toFixed(2)}`;
+      }
+      return `${spentStr} spent`;
+    }
+  }
+  
+  // Fallback
+  return '—';
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -53,7 +104,7 @@ export function ClaudeMaxUsageWidget({ widget }: ClaudeMaxUsageWidgetProps) {
         const usageData = await response.json();
         // Only update state if data actually changed (check capturedAt)
         setData(prev => {
-          if (prev?.capturedAt === usageData.capturedAt) return prev;
+          if (prev?.capturedAt === usageData?.capturedAt) return prev;
           return usageData;
         });
       }
@@ -84,7 +135,7 @@ export function ClaudeMaxUsageWidget({ widget }: ClaudeMaxUsageWidgetProps) {
     );
   }
 
-  if (data?.error && !data.capturedAt) {
+  if (data?.error && !data?.capturedAt) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 p-4">
         <AlertCircle className="w-8 h-8 text-amber-500" />
@@ -116,9 +167,12 @@ export function ClaudeMaxUsageWidget({ widget }: ClaudeMaxUsageWidgetProps) {
     return 'bg-emerald-500';
   };
 
-  const formatTimestamp = (isoString: string) => {
+  const formatTimestamp = (isoString: string | undefined | null) => {
+    if (!isoString) return 'unknown';
     try {
       const date = new Date(isoString);
+      if (isNaN(date.getTime())) return 'unknown';
+      
       const now = new Date();
       const diffMs = now.getTime() - date.getTime();
       const diffMins = Math.floor(diffMs / 60000);
@@ -134,6 +188,12 @@ export function ClaudeMaxUsageWidget({ widget }: ClaudeMaxUsageWidgetProps) {
       return 'unknown';
     }
   };
+
+  // Safely extract percentages with fallbacks
+  const sessionPercent = safePercent(data.session?.percentUsed);
+  const weekAllPercent = safePercent(data.weekAll?.percentUsed);
+  const weekSonnetPercent = safePercent(data.weekSonnet?.percentUsed);
+  const extraPercent = safePercent(data.extra?.percentUsed);
 
   return (
     <div className="flex flex-col h-full gap-4">
@@ -168,16 +228,16 @@ export function ClaudeMaxUsageWidget({ widget }: ClaudeMaxUsageWidgetProps) {
               <span className="text-xs text-muted-foreground">Current Session</span>
             </div>
             <span className="text-xs font-semibold text-foreground">
-              {data.session.percentUsed}%
+              {sessionPercent}%
             </span>
           </div>
           <div className="h-1.5 bg-muted rounded-full overflow-hidden">
             <div
-              className={`h-full ${getProgressColor(data.session.percentUsed)} transition-all duration-500`}
-              style={{ width: `${Math.min(data.session.percentUsed, 100)}%` }}
+              className={`h-full ${getProgressColor(sessionPercent)} transition-all duration-500`}
+              style={{ width: `${sessionPercent}%` }}
             />
           </div>
-          {data.session.resetsAt && (
+          {data.session?.resetsAt && (
             <div className="text-[10px] text-muted-foreground">
               Resets at {data.session.resetsAt}
             </div>
@@ -189,44 +249,44 @@ export function ClaudeMaxUsageWidget({ widget }: ClaudeMaxUsageWidgetProps) {
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Week (All Models)</span>
             <span className="text-xs font-semibold text-foreground">
-              {data.weekAll.percentUsed}%
+              {weekAllPercent}%
             </span>
           </div>
           <div className="h-1.5 bg-muted rounded-full overflow-hidden">
             <div
-              className={`h-full ${getProgressColor(data.weekAll.percentUsed)} transition-all duration-500`}
-              style={{ width: `${Math.min(data.weekAll.percentUsed, 100)}%` }}
+              className={`h-full ${getProgressColor(weekAllPercent)} transition-all duration-500`}
+              style={{ width: `${weekAllPercent}%` }}
             />
           </div>
-          {data.weekAll.resetsAt && (
+          {data.weekAll?.resetsAt && (
             <div className="text-[10px] text-muted-foreground">
               Resets {data.weekAll.resetsAt}
             </div>
           )}
         </div>
 
-        {/* Weekly (Opus) usage */}
+        {/* Weekly (Sonnet) usage */}
         <div className="space-y-1">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Week (Sonnet)</span>
             <span className="text-xs font-semibold text-foreground">
-              {data.weekSonnet.percentUsed}%
+              {weekSonnetPercent}%
             </span>
           </div>
           <div className="h-1.5 bg-muted rounded-full overflow-hidden">
             <div
-              className={`h-full ${getProgressColor(data.weekSonnet.percentUsed)} transition-all duration-500`}
-              style={{ width: `${Math.min(data.weekSonnet.percentUsed, 100)}%` }}
+              className={`h-full ${getProgressColor(weekSonnetPercent)} transition-all duration-500`}
+              style={{ width: `${weekSonnetPercent}%` }}
             />
           </div>
-          {data.weekSonnet.resetsAt && (
+          {data.weekSonnet?.resetsAt && (
             <div className="text-[10px] text-muted-foreground">
               Resets {data.weekSonnet.resetsAt}
             </div>
           )}
         </div>
 
-        {/* Extra usage (NEW!) */}
+        {/* Extra usage */}
         {data.extra && (
           <div className="space-y-1 pt-2 border-t border-border/50">
             <div className="flex items-center justify-between">
@@ -235,17 +295,18 @@ export function ClaudeMaxUsageWidget({ widget }: ClaudeMaxUsageWidgetProps) {
                 <span className="text-xs text-muted-foreground">Extra Usage</span>
               </div>
               <span className="text-xs font-semibold text-foreground">
-                {data.extra.percentUsed}%
+                {extraPercent}%
               </span>
             </div>
             <div className="h-1.5 bg-muted rounded-full overflow-hidden">
               <div
-                className={`h-full ${getProgressColor(data.extra.percentUsed)} transition-all duration-500`}
-                style={{ width: `${Math.min(data.extra.percentUsed, 100)}%` }}
+                className={`h-full ${getProgressColor(extraPercent)} transition-all duration-500`}
+                style={{ width: `${extraPercent}%` }}
               />
             </div>
             <div className="text-[10px] text-muted-foreground">
-              ${data.extra.spent.toFixed(2)} / ${data.extra.limit.toFixed(2)} spent · Resets {data.extra.resetsAt}
+              {formatSpent(data.extra.spent, data.extra.limit)}
+              {data.extra.resetsAt && ` · Resets ${data.extra.resetsAt}`}
             </div>
           </div>
         )}
