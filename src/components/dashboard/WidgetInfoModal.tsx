@@ -24,12 +24,16 @@ interface WidgetInfoModalProps {
 
 interface CredentialInfo {
   id: string;
-  type: 'api_key' | 'local_software' | 'oauth';
+  type: 'api_key' | 'local_software' | 'oauth' | 'agent';
   name: string;
   description?: string;
   obtain_url?: string;
   install_url?: string;
   check_command?: string;
+  // Agent credential fields
+  agent_tool?: string;
+  agent_auth_check?: string;
+  agent_auth_instructions?: string;
 }
 
 interface SetupInfo {
@@ -107,6 +111,10 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
             } else if (cred.type === 'local_software') {
               // Assume configured if setup status is configured
               statusMap[cred.id] = widgetData.setup?.status === 'configured';
+            } else if (cred.type === 'agent') {
+              // Agent credentials can't be verified from the UI
+              // Mark them specially - they'll show as "agent required"
+              statusMap[cred.id] = false; // Will use special rendering
             }
           }
         }
@@ -224,7 +232,10 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
     );
   }
 
-  const allCredentialsConfigured = info?.credentials?.every(c => credentialStatus[c.id]) ?? true;
+  // Agent credentials are always "required" (can't be verified), so we exclude them from the "all configured" check
+  const nonAgentCredentials = info?.credentials?.filter(c => c.type !== 'agent') ?? [];
+  const allCredentialsConfigured = nonAgentCredentials.length === 0 || nonAgentCredentials.every(c => credentialStatus[c.id]);
+  const hasAgentCredentials = info?.credentials?.some(c => c.type === 'agent') ?? false;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -288,9 +299,17 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
               badge={
                 info.credentials && info.credentials.length > 0 ? (
                   <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
-                    allCredentialsConfigured ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-400'
+                    hasAgentCredentials 
+                      ? 'bg-purple-500/20 text-purple-400'
+                      : allCredentialsConfigured 
+                        ? 'bg-green-500/20 text-green-400' 
+                        : 'bg-amber-500/20 text-amber-400'
                   }`}>
-                    {allCredentialsConfigured ? '✓ Ready' : `${info.credentials.filter(c => !credentialStatus[c.id]).length} missing`}
+                    {hasAgentCredentials 
+                      ? `${info.credentials.filter(c => c.type === 'agent').length} agent` 
+                      : allCredentialsConfigured 
+                        ? '✓ Ready' 
+                        : `${nonAgentCredentials.filter(c => !credentialStatus[c.id]).length} missing`}
                   </span>
                 ) : null
               }
@@ -298,17 +317,36 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
               {info.credentials && info.credentials.length > 0 ? (
                 <div className="space-y-3">
                   {info.credentials.map((cred) => (
-                    <div key={cred.id} className="bg-secondary/30 rounded-lg p-3 space-y-2">
+                    <div key={cred.id} className={`rounded-lg p-3 space-y-2 ${
+                      cred.type === 'agent' 
+                        ? 'bg-purple-500/10 border border-purple-500/20' 
+                        : 'bg-secondary/30'
+                    }`}>
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <div className="font-medium">{cred.name}</div>
+                          <div className="font-medium flex items-center gap-2">
+                            {cred.type === 'agent' && <Bot className="h-4 w-4 text-purple-500" />}
+                            {cred.name}
+                          </div>
                           <div className="text-xs text-muted-foreground mt-0.5">
                             {cred.type === 'api_key' && '🔑 API Key'}
                             {cred.type === 'local_software' && '💻 Local Software'}
                             {cred.type === 'oauth' && '🔐 OAuth'}
+                            {cred.type === 'agent' && (
+                              <span className="text-purple-400">
+                                🤖 Agent Tool{cred.agent_tool && ` (${cred.agent_tool})`}
+                              </span>
+                            )}
                           </div>
                         </div>
-                        <StatusBadge configured={credentialStatus[cred.id] ?? false} />
+                        {cred.type === 'agent' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-500/20 text-purple-400">
+                            <Bot className="h-3 w-3" />
+                            Agent Required
+                          </span>
+                        ) : (
+                          <StatusBadge configured={credentialStatus[cred.id] ?? false} />
+                        )}
                       </div>
                       {cred.description && (
                         <p className="text-xs text-muted-foreground">{cred.description}</p>
@@ -317,6 +355,21 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
                         <div className="text-xs font-mono bg-secondary/50 px-2 py-1 rounded">
                           $ {cred.check_command}
                         </div>
+                      )}
+                      {cred.type === 'agent' && cred.agent_auth_check && (
+                        <div className="text-xs font-mono bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20">
+                          <span className="text-purple-400">Check:</span> $ {cred.agent_auth_check}
+                        </div>
+                      )}
+                      {cred.type === 'agent' && cred.agent_auth_instructions && (
+                        <details className="text-xs">
+                          <summary className="cursor-pointer text-purple-400 hover:text-purple-300 font-medium">
+                            How to authenticate
+                          </summary>
+                          <pre className="mt-2 bg-secondary/50 p-2 rounded overflow-auto max-h-32 text-[11px] whitespace-pre-wrap font-mono">
+                            {cred.agent_auth_instructions}
+                          </pre>
+                        </details>
                       )}
                       <div className="flex gap-2">
                         {cred.obtain_url && (
