@@ -132,7 +132,7 @@ export async function POST(
   }
 
   // Get or create widget instance
-  let instances = getWidgetsByCustomWidgetId(widget.id);
+  const instances = getWidgetsByCustomWidgetId(widget.id);
   
   if (instances.length === 0) {
     return NextResponse.json({ 

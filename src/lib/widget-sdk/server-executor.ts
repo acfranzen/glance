@@ -139,7 +139,7 @@ export async function executeServerCode(
   serverCode: string,
   options: ServerExecutorOptions = {}
 ): Promise<ServerExecutorResult> {
-  const { params = {}, timeout = 5000, fetchConfig } = options;
+  const { params = {}, timeout = 5000 } = options;
 
   // Validate patterns first
   const validation = validateServerCode(serverCode);
