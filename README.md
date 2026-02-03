@@ -121,6 +121,21 @@ No `.env` files. No copy-pasting tokens. No configuration circus. It just works.
 "What's the status of my dashboard?"
 "Move the GitHub widget to the top right"
 "Delete the clock widget, I don't need it"
+"Import this widget: !GW1!eJyrVkrOz..."
+```
+
+### Sharing Widgets
+
+Export any widget as a shareable string and import widgets others have shared:
+
+```
+You: "Export my Claude usage widget"
+OpenClaw: *generates a !GW1!... package string*
+         "Here's your widget package. Share this string and anyone can import it."
+
+You: "Import this widget: !GW1!eJyrVkrOz0nVUbJS..."
+OpenClaw: *validates, checks credentials, imports*
+         "Done! The widget needs a GitHub token. Want me to set that up?"
 ```
 
 ---
@@ -129,6 +144,7 @@ No `.env` files. No copy-pasting tokens. No configuration circus. It just works.
 
 - 🤖 **100% OpenClaw-Managed** — OpenClaw builds, updates, and interprets widgets
 - 💬 **Natural Language Widgets** — Describe what you want, get a working widget
+- 📦 **Widget Package Sharing** — Share widgets via compressed strings (WeakAuras-style)
 - 🔐 **Encrypted Credential Store** — No `.env` files, no plaintext secrets
 - 🏠 **Local-First** — Runs on your machine, your data stays yours
 - 🎨 **Drag & Drop** — Rearrange and resize widgets freely
@@ -182,6 +198,13 @@ No `.env` files. No copy-pasting tokens. No configuration circus. It just works.
 | `GET`    | `/api/credentials`     | List credentials + status      |
 | `GET`    | `/api/credentials/:id` | Get credential metadata        |
 | `DELETE` | `/api/credentials/:id` | Delete a credential            |
+
+### Widget Package API
+
+| Method | Endpoint                      | Description                       |
+| ------ | ----------------------------- | --------------------------------- |
+| `GET`  | `/api/widget-packages/:slug`  | Export widget as package string   |
+| `POST` | `/api/widget-packages/import` | Import widget from package string |
 
 ### Widget SDK Components
 

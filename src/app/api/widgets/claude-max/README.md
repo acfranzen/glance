@@ -100,3 +100,148 @@ The `ClaudeMaxUsageWidget` component automatically:
 **node-pty compatibility issues:**
 - Current implementation avoids node-pty due to compatibility issues with Node 25.5.0
 - If you need PTY support, consider downgrading to Node 22 LTS and rebuilding node-pty
+
+---
+
+## Widget Package Configuration
+
+This widget demonstrates the `cache_file` fetch type and `local_software` credential type. Here's how it would be configured for sharing as a widget package:
+
+### Credentials
+
+```json
+{
+  "credentials": [
+    {
+      "id": "claude-cli",
+      "type": "local_software",
+      "name": "Claude CLI",
+      "description": "Anthropic's Claude CLI tool for checking usage",
+      "check_command": "which claude",
+      "install_url": "https://docs.anthropic.com/en/docs/claude-code/getting-started",
+      "install_instructions": "Install Claude Code from Anthropic's documentation. Requires an active Claude Max subscription."
+    }
+  ]
+}
+```
+
+### Setup (Agent Skill)
+
+The `setup.agent_skill` field contains instructions that OpenClaw can follow to configure the widget:
+
+```markdown
+# Claude Max Usage Widget Setup
+
+This widget requires a local PTY capture script to read Claude CLI usage data.
+
+## Prerequisites
+- Claude CLI installed and authenticated (`claude --version` should work)
+- Active Claude Max subscription
+- Glance running locally
+
+## Setup Steps
+
+1. **Create the capture script** at `./scripts/capture-claude-usage-pty.sh`:
+
+\`\`\`bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+CLAUDE_PATH="${CLAUDE_PATH:-claude}"
+CACHE_FILE="/tmp/claude-usage-cache.json"
+
+# Capture usage via PTY
+usage_output=$(script -q /dev/null "$CLAUDE_PATH" --dangerously-skip-permissions 2>&1 << 'EOF'
+/usage
+/exit
+EOF
+)
+
+# Parse and save to cache
+node ./scripts/extract-claude-usage.js "$usage_output" > "$CACHE_FILE"
+\`\`\`
+
+2. **Make the script executable**:
+\`\`\`bash
+chmod +x ./scripts/capture-claude-usage-pty.sh
+\`\`\`
+
+3. **Test the script**:
+\`\`\`bash
+./scripts/capture-claude-usage-pty.sh
+cat /tmp/claude-usage-cache.json
+\`\`\`
+
+4. **Set up cron job** for automatic refresh:
+\`\`\`bash
+(crontab -l 2>/dev/null; echo "*/10 * * * * cd $(pwd) && ./scripts/capture-claude-usage-pty.sh >/dev/null 2>&1") | crontab -
+\`\`\`
+
+## Verification
+The setup is complete when `/tmp/claude-usage-cache.json` exists and contains valid JSON.
+```
+
+### Fetch Configuration
+
+```json
+{
+  "fetch": {
+    "type": "cache_file",
+    "cache_path": "/tmp/claude-usage-cache.json"
+  }
+}
+```
+
+### Full Package Structure
+
+When exported, this widget's package would include:
+
+```json
+{
+  "version": 1,
+  "type": "glance-widget",
+  "meta": {
+    "name": "Claude Max Usage",
+    "slug": "claude-max-usage",
+    "description": "Track your Claude Max API usage across session, weekly, and extra limits",
+    "author": "Glance Team"
+  },
+  "widget": {
+    "source_code": "function Widget() { ... }",
+    "server_code": "const cached = await readCacheFile('/tmp/claude-usage-cache.json'); ...",
+    "server_code_enabled": true,
+    "default_size": { "w": 4, "h": 3 },
+    "min_size": { "w": 3, "h": 2 },
+    "refresh_interval": 300
+  },
+  "credentials": [
+    {
+      "id": "claude-cli",
+      "type": "local_software",
+      "name": "Claude CLI",
+      "description": "Anthropic's Claude CLI tool",
+      "check_command": "which claude"
+    }
+  ],
+  "setup": {
+    "description": "Set up PTY capture script for Claude usage data",
+    "agent_skill": "# Claude Max Usage Widget Setup\n\n...",
+    "verification": {
+      "type": "file_exists",
+      "target": "/tmp/claude-usage-cache.json"
+    },
+    "idempotent": true,
+    "estimated_time": "5 minutes"
+  },
+  "fetch": {
+    "type": "cache_file",
+    "cache_path": "/tmp/claude-usage-cache.json"
+  }
+}
+```
+
+This configuration allows OpenClaw to:
+1. Check if Claude CLI is installed
+2. Follow the agent_skill instructions to set up the capture script
+3. Verify setup by checking if the cache file exists
+4. Read usage data from the cache file via `readCacheFile()`

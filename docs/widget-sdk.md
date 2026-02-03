@@ -10,6 +10,8 @@ The Glance Widget SDK enables AI assistants (and developers) to create custom wi
 - [Quick Start](#quick-start)
 - [Common Workflows](#common-workflows)
 - [Widget Creation API](#widget-creation-api)
+- [Widget Package Import/Export](#widget-package-importexport)
+- [Widget Requirements Model](#widget-requirements-model)
 - [Credential Management](#credential-management)
 - [When to Use Server Code](#when-to-use-server-code)
 - [Reading Widget Data](#reading-widget-data)
@@ -389,6 +391,10 @@ Content-Type: application/json
 | `default_size`        | object   | No       | Default size `{ w: number, h: number }` (default: 4x3) |
 | `min_size`            | object   | No       | Minimum size `{ w: number, h: number }` (default: 2x2) |
 | `refresh_interval`    | number   | No       | Auto-refresh interval in seconds (default: 300)        |
+| `credentials`         | array    | No       | Credential requirements (see [Widget Requirements](#widget-requirements-model)) |
+| `setup`               | object   | No       | Setup configuration for local setup steps              |
+| `fetch`               | object   | No       | Fetch configuration (default: `{"type": "server_code"}`) |
+| `author`              | string   | No       | Author name for attribution                            |
 
 **Response (201 Created):**
 
@@ -563,6 +569,302 @@ Authorization: Bearer <token>
   ]
 }
 ```
+
+---
+
+## Widget Package Import/Export
+
+Glance supports WeakAuras-style widget sharing through compressed package strings. Share widgets with a single string that contains all the code, configuration, and setup requirements.
+
+### Package Format
+
+Widget packages use the format: `!GW1!<base64-zlib-compressed-json>`
+
+- **Magic prefix**: `!GW1!` (Glance Widget v1)
+- **Payload**: zlib-compressed JSON, base64 encoded
+- **Typical size**: 500-5000 characters depending on widget complexity
+
+### Export a Widget
+
+```http
+GET /api/widget-packages/:slug
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+
+| Parameter | Type   | Description                      |
+| --------- | ------ | -------------------------------- |
+| `author`  | string | Optional author name for package |
+
+**Response (200 OK):**
+
+```json
+{
+  "package": "!GW1!eJyrVkrOz0nVUbJSKs8vyklRAgAe9wR...",
+  "meta": {
+    "name": "GitHub PRs",
+    "slug": "github-prs",
+    "description": "Shows open pull requests",
+    "author": "acfranzen",
+    "created_at": "2026-02-01T12:00:00.000Z",
+    "exported_at": "2026-02-03T10:30:00.000Z"
+  },
+  "credentials_count": 1,
+  "has_setup": false,
+  "fetch_type": "server_code",
+  "validation": {
+    "valid": true,
+    "warnings": []
+  }
+}
+```
+
+### Import a Widget
+
+```http
+POST /api/widget-packages/import
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "package": "!GW1!eJyrVkrOz0nVUbJSKs8vyklRAgAe9wR...",
+  "dry_run": true,
+  "auto_add_to_dashboard": false
+}
+```
+
+**Request Fields:**
+
+| Field                   | Type    | Required | Description                                      |
+| ----------------------- | ------- | -------- | ------------------------------------------------ |
+| `package`               | string  | Yes      | The `!GW1!...` package string                    |
+| `dry_run`               | boolean | No       | If true, validate only without importing         |
+| `auto_add_to_dashboard` | boolean | No       | If true, also create a widget instance           |
+| `config_overrides`      | object  | No       | Config to pass to the widget instance            |
+
+**Response (200 OK for dry_run, 201 Created for import):**
+
+```json
+{
+  "valid": true,
+  "widget_preview": {
+    "name": "GitHub PRs",
+    "slug": "github-prs",
+    "description": "Shows open pull requests"
+  },
+  "status": {
+    "credentials": [
+      {
+        "id": "github",
+        "type": "api_key",
+        "name": "GitHub Token",
+        "status": "configured",
+        "description": "GitHub personal access token"
+      }
+    ],
+    "setup": {
+      "status": "not_required"
+    },
+    "fetch": {
+      "type": "server_code",
+      "status": "ready"
+    }
+  },
+  "ready_to_import": true,
+  "blocking_issues": [],
+  "message": "Widget is ready to import.",
+  "widget": {
+    "id": "cw_abc123xyz",
+    "name": "GitHub PRs",
+    "slug": "github-prs"
+  }
+}
+```
+
+### Package Structure
+
+The decoded package contains:
+
+```json
+{
+  "version": 1,
+  "type": "glance-widget",
+  "meta": {
+    "name": "Widget Name",
+    "slug": "widget-slug",
+    "description": "Widget description",
+    "author": "Author Name",
+    "created_at": "2026-02-01T12:00:00.000Z",
+    "exported_at": "2026-02-03T10:30:00.000Z"
+  },
+  "widget": {
+    "source_code": "function Widget() { ... }",
+    "server_code": "const token = await getCredential('github'); ...",
+    "server_code_enabled": true,
+    "default_size": { "w": 4, "h": 3 },
+    "min_size": { "w": 2, "h": 2 },
+    "refresh_interval": 300
+  },
+  "credentials": [...],
+  "setup": {...},
+  "fetch": {...}
+}
+```
+
+### OpenClaw Import Workflow
+
+When a user pastes a widget package, OpenClaw can:
+
+1. **Validate**: `POST /api/widget-packages/import` with `dry_run: true`
+2. **Check status**: Review credentials and setup requirements
+3. **Configure missing credentials**: Guide user through setup
+4. **Import**: `POST /api/widget-packages/import` with `dry_run: false`
+5. **Run setup**: If `agent_skill` is provided, follow the instructions
+
+---
+
+## Widget Requirements Model
+
+Widgets can specify three types of requirements that are bundled into packages:
+
+### Credentials
+
+API keys and tokens the widget needs. Each credential has a type:
+
+| Type             | Description                                          |
+| ---------------- | ---------------------------------------------------- |
+| `api_key`        | Standard API key (GitHub, Anthropic, etc.)           |
+| `local_software` | Local software that must be installed (CLI tools)    |
+| `oauth`          | OAuth token requiring authorization flow             |
+
+**Credential Requirement Fields:**
+
+```json
+{
+  "id": "github",
+  "type": "api_key",
+  "name": "GitHub Token",
+  "description": "Personal access token with repo scope",
+  "obtain_url": "https://github.com/settings/tokens",
+  "obtain_instructions": "Create a token with 'repo' scope",
+  "validation": {
+    "url": "https://api.github.com/user",
+    "method": "GET",
+    "auth_header": "Authorization: Bearer {token}"
+  }
+}
+```
+
+For `local_software` type:
+
+```json
+{
+  "id": "claude-cli",
+  "type": "local_software",
+  "name": "Claude CLI",
+  "description": "Anthropic's Claude CLI tool",
+  "check_command": "which claude",
+  "install_url": "https://docs.anthropic.com/claude-cli",
+  "install_instructions": "Install via: npm install -g @anthropic-ai/claude-cli"
+}
+```
+
+### Setup
+
+One-time configuration steps, often requiring local system changes:
+
+```json
+{
+  "description": "Set up PTY capture script for Claude usage data",
+  "agent_skill": "# Claude Usage Capture Setup\n\n1. Create the capture script...\n2. Set up cron job...",
+  "verification": {
+    "type": "file_exists",
+    "target": "/tmp/claude-usage-cache.json"
+  },
+  "idempotent": true,
+  "estimated_time": "5 minutes"
+}
+```
+
+**Verification Types:**
+
+| Type                | Description                              |
+| ------------------- | ---------------------------------------- |
+| `file_exists`       | Check if a file exists at `target` path  |
+| `command_succeeds`  | Run `target` command, check exit code    |
+| `endpoint_responds` | Check if `target` URL returns 200        |
+
+The `agent_skill` field contains markdown instructions that OpenClaw can follow to set up the widget automatically.
+
+### Fetch
+
+How the widget gets its data:
+
+| Type            | Description                                      |
+| --------------- | ------------------------------------------------ |
+| `server_code`   | Execute server-side JS code (default)            |
+| `cache_file`    | Read from a local cache file                     |
+| `webhook`       | Receive data via webhook endpoint                |
+| `agent_refresh` | OpenClaw periodically runs a refresh command     |
+
+**Examples:**
+
+```json
+// server_code (default)
+{
+  "type": "server_code"
+}
+
+// cache_file - for widgets that need local data
+{
+  "type": "cache_file",
+  "cache_path": "/tmp/claude-usage-cache.json"
+}
+
+// webhook - for push-based updates
+{
+  "type": "webhook",
+  "webhook_path": "/api/webhooks/my-widget",
+  "webhook_setup_instructions": "Configure your service to POST to this endpoint"
+}
+
+// agent_refresh - OpenClaw runs a command to update data
+{
+  "type": "agent_refresh",
+  "refresh_command": "./scripts/capture-data.sh",
+  "refresh_interval": 600
+}
+```
+
+### Setup Status Tracking
+
+Track whether a widget's setup has been completed:
+
+```http
+GET /api/setups?widget_slug=claude-max-usage
+Authorization: Bearer <token>
+```
+
+```http
+POST /api/setups
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "widget_slug": "claude-max-usage",
+  "status": "configured",
+  "notes": "Cron job set up on server"
+}
+```
+
+**Status Values:**
+
+| Status           | Description                        |
+| ---------------- | ---------------------------------- |
+| `not_configured` | Setup has not been completed       |
+| `configured`     | Setup completed successfully       |
+| `failed`         | Setup was attempted but failed     |
 
 ---
 
@@ -1203,10 +1505,22 @@ return { user, fetchedAt: new Date().toISOString() };
 ### Available in Server Code
 
 - `fetch` - Make HTTP requests
-- `getCredential(provider)` - Get decrypted credential for a provider
+- `getCredential(provider)` - Get decrypted credential for a provider (supports both built-in and custom providers)
+- `readCacheFile(path)` - Read from a cache file (only paths matching widget's `fetch.cache_path` or `/tmp`)
 - `params` - Parameters passed from the widget
 - `console.log/warn/error` - Logging (prefixed with `[server-code]`)
 - Standard JS built-ins: `JSON`, `Date`, `Math`, `Array`, `Object`, `Promise`, `Map`, `Set`, etc.
+
+**Example using `readCacheFile()`:**
+
+```javascript
+// For widgets with fetch.type = "cache_file"
+const cached = await readCacheFile('/tmp/my-widget-cache.json');
+if (cached) {
+  return JSON.parse(cached);
+}
+return { error: 'Cache not found. Run the setup script first.' };
+```
 
 ### Blocked in Server Code
 
@@ -1732,6 +2046,21 @@ Understanding API response structures is critical for parsing and handling data 
 | `GET`    | `/api/credentials/:id` | Get credential metadata       | Bearer token |
 | `PUT`    | `/api/credentials/:id` | Update a credential           | Bearer token |
 | `DELETE` | `/api/credentials/:id` | Delete a credential           | Bearer token |
+
+### Widget Package Endpoints
+
+| Method | Endpoint                       | Description                        | Auth         |
+| ------ | ------------------------------ | ---------------------------------- | ------------ |
+| `GET`  | `/api/widget-packages/:slug`   | Export widget as package string    | Bearer token |
+| `POST` | `/api/widget-packages/import`  | Import widget from package string  | Bearer token |
+
+### Setup Status Endpoints
+
+| Method   | Endpoint      | Description                    | Auth         |
+| -------- | ------------- | ------------------------------ | ------------ |
+| `GET`    | `/api/setups` | List all or get specific setup | Bearer token |
+| `POST`   | `/api/setups` | Create/update setup status     | Bearer token |
+| `DELETE` | `/api/setups` | Delete setup record            | Bearer token |
 
 ### Response Codes
 
