@@ -39,6 +39,7 @@ export function DashboardGrid() {
   const {
     widgets,
     layout,
+    mobileLayout,
     isEditing,
     updateLayout,
     removeWidget,
@@ -91,24 +92,58 @@ export function DashboardGrid() {
       setIsMobile(window.innerWidth < 640);
     };
 
+    // Use ResizeObserver for accurate width tracking
+    const container = document.getElementById("dashboard-container");
+    let resizeObserver: ResizeObserver | null = null;
+    
+    if (container && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        updateWidth();
+      });
+      resizeObserver.observe(container);
+    }
+
+    // Initial update with slight delay to ensure layout is complete
     updateWidth();
+    setTimeout(updateWidth, 100);
+    
     window.addEventListener("resize", updateWidth);
-    return () => window.removeEventListener("resize", updateWidth);
+    return () => {
+      window.removeEventListener("resize", updateWidth);
+      resizeObserver?.disconnect();
+    };
   }, []);
 
   // Track pending layout changes (only saved when exiting edit mode)
-  const pendingLayoutRef = useRef<LayoutItem[] | null>(null);
+  // Separate refs for desktop and mobile layouts
+  const pendingDesktopLayoutRef = useRef<LayoutItem[] | null>(null);
+  const pendingMobileLayoutRef = useRef<LayoutItem[] | null>(null);
   const prevEditingRef = useRef(isEditing);
+  // Track which viewport was being edited
+  const editingViewportRef = useRef<'desktop' | 'mobile'>('desktop');
 
-  // Save layout when exiting edit mode (clicking Done)
+  // Save layouts when exiting edit mode (clicking Done)
   useEffect(() => {
-    if (prevEditingRef.current && !isEditing && pendingLayoutRef.current) {
-      // Was editing, now not editing -> save pending layout
-      updateLayout(pendingLayoutRef.current);
-      pendingLayoutRef.current = null;
+    if (prevEditingRef.current && !isEditing) {
+      // Was editing, now not editing -> save pending layouts
+      if (pendingDesktopLayoutRef.current) {
+        updateLayout(pendingDesktopLayoutRef.current, false);
+        pendingDesktopLayoutRef.current = null;
+      }
+      if (pendingMobileLayoutRef.current) {
+        updateLayout(pendingMobileLayoutRef.current, true);
+        pendingMobileLayoutRef.current = null;
+      }
     }
     prevEditingRef.current = isEditing;
   }, [isEditing, updateLayout]);
+
+  // Update which viewport is being edited when isMobile changes during edit
+  useEffect(() => {
+    if (isEditing) {
+      editingViewportRef.current = isMobile ? 'mobile' : 'desktop';
+    }
+  }, [isMobile, isEditing]);
 
   const handleLayoutChange = useCallback(
     (newLayout: LayoutItem[]) => {
@@ -116,10 +151,14 @@ export function DashboardGrid() {
 
       // Only track changes when in edit mode
       if (isEditing) {
-        pendingLayoutRef.current = newLayout;
+        if (isMobile) {
+          pendingMobileLayoutRef.current = newLayout;
+        } else {
+          pendingDesktopLayoutRef.current = newLayout;
+        }
       }
     },
-    [isEditing],
+    [isEditing, isMobile],
   );
 
   const handleRemoveWidget = useCallback(
@@ -242,24 +281,19 @@ export function DashboardGrid() {
     );
   }
 
-  // Mobile: single column, stacked vertically
-  // Tablet/Desktop: use stored layout
-  const responsiveLayout = isMobile
-    ? layout.map((item, index) => ({
-        ...item,
-        x: 0,
-        y: index * 2, // Reduced vertical spacing for mobile
-        w: 1,
-        h: Math.max(item.h, 2),
-        minW: 1,
-        minH: 2,
-        static: !isEditing,
-      }))
-    : layout.map((item) => ({
-        ...item,
-        static: !isEditing,
-      }));
+  // Use appropriate layout based on viewport
+  // Mobile: 2 columns, stored mobile layout
+  // Desktop: 12 columns, stored desktop layout
+  const activeLayout = isMobile ? mobileLayout : layout;
+  const responsiveLayout = activeLayout.map((item) => ({
+    ...item,
+    minW: isMobile ? 1 : 2,
+    minH: 2,
+    static: !isEditing,
+  }));
 
+  // Grid configuration
+  const cols = isMobile ? 2 : 12;
   // Responsive margins: smaller on mobile
   const gridMargin: [number, number] = isMobile ? [8, 8] : [16, 16];
   // Responsive row height: slightly smaller on mobile for better density
@@ -271,12 +305,12 @@ export function DashboardGrid() {
         <GridLayout
           className="layout"
           layout={responsiveLayout}
-          cols={isMobile ? 1 : 12}
+          cols={cols}
           rowHeight={rowHeight}
           width={width}
           onLayoutChange={handleLayoutChange}
-          isDraggable={isEditing && !isMobile}
-          isResizable={isEditing && !isMobile}
+          isDraggable={isEditing}
+          isResizable={isEditing}
           margin={gridMargin}
           containerPadding={[0, 0]}
           useCSSTransforms={true}
