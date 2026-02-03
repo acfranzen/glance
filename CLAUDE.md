@@ -50,9 +50,27 @@ npx tsc --noEmit     # Type checking
 ### Widget Creation Flow
 
 1. `POST /api/credentials` - Store encrypted API keys
-2. `POST /api/custom-widgets` - Create widget definition with `source_code` (JSX) and optional `server_code`
-3. `POST /api/widgets` - Add widget instance to dashboard
-4. Widget renders client-side; server code executes via `/api/custom-widgets/:slug/execute`
+2. `POST /api/widgets` - Create widget definition with `source_code` (JSX) and optional `server_code`
+3. `POST /api/widgets/instances` - Add widget instance to dashboard
+4. Widget renders client-side; server code executes via `/api/widgets/:slug/execute`
+
+### API Structure
+
+All widget-related routes consolidated under `/api/widgets/`:
+- `/api/widgets` - Custom widget definitions (CRUD)
+- `/api/widgets/instances` - Widget instances on dashboard
+- `/api/widgets/proxy` - Credential-injected API proxy
+- `/api/widgets/import` - Import widget packages
+- `/api/widgets/:slug/export` - Export widget as package
+- `/api/widgets/:slug/execute` - Run server code
+- `/api/widgets/:slug/refresh` - Request data refresh
+- `/api/widgets/:slug/cache` - Cache management
+- `/api/widgets/setups` - Setup wizard configurations
+
+Other routes:
+- `/api/credentials` - Encrypted credential storage
+- `/api/layout` - Layout and theme (merged)
+- `/api/snapshot` - Dashboard snapshot for AI reading
 
 ### Security Model
 

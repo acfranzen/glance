@@ -26,8 +26,8 @@ If you're an AI agent (OpenClaw, Cursor, Claude, etc.), read these files:
 **TL;DR workflow:**
 
 1. `POST /api/credentials` — Store API keys (provider, name, value)
-2. `POST /api/custom-widgets` — Create widget definition (source_code, server_code)
-3. `POST /api/widgets` — Add widget instance to dashboard
+2. `POST /api/widgets` — Create widget definition (source_code, server_code)
+3. `POST /api/widgets/instances` — Add widget instance to dashboard
 
 ---
 
@@ -63,7 +63,8 @@ Add to your OpenClaw workspace (TOOLS.md or memory):
 
 - URL: http://localhost:3333
 - Auth: Bearer <your-token>
-- API: POST /api/custom-widgets to create widgets
+- API: POST /api/widgets to create widget definitions
+- API: POST /api/widgets/instances to add widgets to dashboard
 - API: POST /api/credentials to store API keys
 ```
 
@@ -170,25 +171,16 @@ OpenClaw: *validates, checks credentials, imports*
 
 ## 🔧 API Reference (For OpenClaw)
 
-### Widget Definition API
+### Custom Widget Definition API
 
 | Method   | Endpoint                            | Description                 |
 | -------- | ----------------------------------- | --------------------------- |
-| `POST`   | `/api/custom-widgets`               | Create widget definition    |
-| `GET`    | `/api/custom-widgets`               | List all widget definitions |
-| `GET`    | `/api/custom-widgets/:slug`         | Get widget definition       |
-| `PATCH`  | `/api/custom-widgets/:slug`         | Update widget definition    |
-| `DELETE` | `/api/custom-widgets/:slug`         | Delete widget definition    |
-| `POST`   | `/api/custom-widgets/:slug/execute` | Execute server code         |
-
-### Widget Instance API
-
-| Method   | Endpoint           | Description             |
-| -------- | ------------------ | ----------------------- |
-| `POST`   | `/api/widgets`     | Add widget to dashboard |
-| `GET`    | `/api/widgets`     | List dashboard widgets  |
-| `PATCH`  | `/api/widgets/:id` | Update widget instance  |
-| `DELETE` | `/api/widgets/:id` | Remove from dashboard   |
+| `POST`   | `/api/widgets`                      | Create widget definition    |
+| `GET`    | `/api/widgets`                      | List all widget definitions |
+| `GET`    | `/api/widgets/:slug`                | Get widget definition       |
+| `PATCH`  | `/api/widgets/:slug`                | Update widget definition    |
+| `DELETE` | `/api/widgets/:slug`                | Delete widget definition    |
+| `POST`   | `/api/widgets/:slug/execute`        | Execute server code         |
 
 ### Credential API
 
@@ -199,12 +191,32 @@ OpenClaw: *validates, checks credentials, imports*
 | `GET`    | `/api/credentials/:id` | Get credential metadata        |
 | `DELETE` | `/api/credentials/:id` | Delete a credential            |
 
+### Dashboard API
+
+| Method   | Endpoint                    | Description                    |
+| -------- | --------------------------- | ------------------------------ |
+| `GET`    | `/api/widgets/instances`    | List widgets on dashboard      |
+| `POST`   | `/api/widgets/instances`    | Add widget to dashboard        |
+| `PATCH`  | `/api/widgets/instances/:id`| Update widget instance         |
+| `DELETE` | `/api/widgets/instances/:id`| Remove widget from dashboard   |
+| `GET`    | `/api/layout`               | Get layout and theme           |
+| `PUT`    | `/api/layout`               | Save layout/theme              |
+| `GET`    | `/api/snapshot`             | Dashboard snapshot for AI      |
+
 ### Widget Package API
 
-| Method | Endpoint                      | Description                       |
-| ------ | ----------------------------- | --------------------------------- |
-| `GET`  | `/api/widget-packages/:slug`  | Export widget as package string   |
-| `POST` | `/api/widget-packages/import` | Import widget from package string |
+| Method | Endpoint                    | Description                       |
+| ------ | --------------------------- | --------------------------------- |
+| `GET`  | `/api/widgets/:slug/export` | Export widget as package string   |
+| `POST` | `/api/widgets/import`       | Import widget from package string |
+
+### Widget Data API
+
+| Method | Endpoint                     | Description                         |
+| ------ | ---------------------------- | ----------------------------------- |
+| `POST` | `/api/widgets/proxy`         | Proxy API calls with credentials    |
+| `POST` | `/api/widgets/:slug/refresh` | Request data refresh (webhook/agent)|
+| `GET`  | `/api/widgets/:slug/cache`   | Get cached widget data              |
 
 ### Widget SDK Components
 
