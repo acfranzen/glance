@@ -5,27 +5,51 @@ export const dynamic = 'force-dynamic';
 import { validateAuthOrInternal } from '@/lib/auth';
 import { getWidget, getCustomWidget, updateWidgetData } from '@/lib/db';
 import { getWidgetData } from '@/lib/widget-data';
+import { CachedData, isStale, parseCachedData } from '@/lib/cache-utils';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-interface CachedDataMeta {
-  data: unknown;
-  provider: string;
-  fetchedAt: string;
-  endpoint: string;
+// Helper to get refresh interval for a widget
+function getRefreshInterval(widget: { custom_widget_id?: string }): number {
+  const defaultInterval = 300; // Default 5 minutes
+  
+  if (widget.custom_widget_id) {
+    const customWidget = getCustomWidget(widget.custom_widget_id);
+    if (customWidget) {
+      return customWidget.refresh_interval;
+    }
+  }
+  
+  return defaultInterval;
 }
 
-// Check if cached data is stale based on refresh_interval
-function isStale(dataUpdatedAt: string | null, refreshIntervalSeconds: number): boolean {
-  if (!dataUpdatedAt) return true;
-  
-  const cacheTime = new Date(dataUpdatedAt).getTime();
-  const now = Date.now();
-  const maxAgeMs = refreshIntervalSeconds * 1000;
-  
-  return (now - cacheTime) >= maxAgeMs;
+// Helper to build cache metadata response block
+function buildCacheMetadata(
+  widget: { data_cache: string | null; data_updated_at: string | null },
+  refreshInterval: number
+): {
+  cached: boolean;
+  cachedAt: string | null;
+  source: string | null;
+  endpoint: string | null;
+  stale: boolean;
+  refreshInterval: number;
+  dataUpdatedAt: string | null;
+} {
+  const cacheMeta = parseCachedData(widget.data_cache);
+  const stale = isStale(widget.data_updated_at, refreshInterval);
+
+  return {
+    cached: !!widget.data_cache,
+    cachedAt: cacheMeta?.fetchedAt ?? widget.data_updated_at,
+    source: cacheMeta?.provider ?? null,
+    endpoint: cacheMeta?.endpoint ?? null,
+    stale,
+    refreshInterval,
+    dataUpdatedAt: widget.data_updated_at
+  };
 }
 
 // GET /api/widgets/:id/data - Get cached widget data with cache metadata
@@ -47,31 +71,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Get refresh interval from custom widget definition (if it's a custom widget)
-    let refreshInterval = 300; // Default 5 minutes
-    const customWidgetId = (widget as { custom_widget_id?: string }).custom_widget_id;
-    if (customWidgetId) {
-      const customWidget = getCustomWidget(customWidgetId);
-      if (customWidget) {
-        refreshInterval = customWidget.refresh_interval;
-      }
-    }
+    const refreshInterval = getRefreshInterval(widget as { custom_widget_id?: string });
 
     // Get the bot-parseable widget data (includes summary, narratives, etc.)
     const widgetData = await getWidgetData(widget);
-
-    // Parse cache metadata if available
-    let cacheMeta: CachedDataMeta | null = null;
-    if (widget.data_cache) {
-      try {
-        cacheMeta = JSON.parse(widget.data_cache) as CachedDataMeta;
-      } catch {
-        // Cache data might be in old format or corrupted
-        cacheMeta = null;
-      }
-    }
-
-    const stale = isStale(widget.data_updated_at, refreshInterval);
 
     // Return combined response with both formats
     return NextResponse.json({
@@ -79,15 +82,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       ...widgetData,
       
       // Cache metadata
-      cache: {
-        cached: !!widget.data_cache,
-        cachedAt: cacheMeta?.fetchedAt ?? widget.data_updated_at,
-        source: cacheMeta?.provider ?? null,
-        endpoint: cacheMeta?.endpoint ?? null,
-        stale,
-        refreshInterval,
-        dataUpdatedAt: widget.data_updated_at
-      }
+      cache: buildCacheMetadata(widget, refreshInterval)
     });
   } catch (error) {
     console.error('Failed to get widget data:', error);
@@ -121,14 +116,23 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Update the widget's data cache
     updateWidgetData(id, body);
 
-    // Return the updated data in bot-parseable format
+    // Return the updated data in bot-parseable format with cache metadata
     const updatedWidget = getWidget(id);
     if (!updatedWidget) {
       throw new Error('Failed to fetch updated widget');
     }
 
-    const data = await getWidgetData(updatedWidget);
-    return NextResponse.json(data);
+    const refreshInterval = getRefreshInterval(updatedWidget as { custom_widget_id?: string });
+    const widgetData = await getWidgetData(updatedWidget);
+    
+    // Return combined response matching GET structure (Issue #3: POST missing cache metadata)
+    return NextResponse.json({
+      // Bot-parseable widget data
+      ...widgetData,
+      
+      // Cache metadata
+      cache: buildCacheMetadata(updatedWidget, refreshInterval)
+    });
   } catch (error) {
     console.error('Failed to push widget data:', error);
     return NextResponse.json(

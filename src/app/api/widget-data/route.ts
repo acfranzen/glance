@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import { validateAuthOrInternal } from '@/lib/auth';
 import { getDataProviderBySlug, getWidget, getCustomWidget, updateWidgetData, type DataProvider } from '@/lib/db';
 import { getCredentialValue, getCredential, Provider } from '@/lib/credentials';
+import { CachedData, isCacheFresh, parseCachedData, isCacheValidForRequest } from '@/lib/cache-utils';
 
 interface WidgetDataRequest {
   widget_id: string;
@@ -15,13 +16,6 @@ interface WidgetDataRequest {
     method?: 'GET' | 'POST';
     body?: unknown;
   };
-}
-
-interface CachedData {
-  data: unknown;
-  provider: string;
-  fetchedAt: string;
-  endpoint: string;
 }
 
 // Build the full URL with parameter substitution
@@ -98,17 +92,6 @@ function buildHeaders(
   return headers;
 }
 
-// Check if cached data is still fresh based on refresh_interval
-function isCacheFresh(dataUpdatedAt: string | null, refreshIntervalSeconds: number): boolean {
-  if (!dataUpdatedAt) return false;
-  
-  const cacheTime = new Date(dataUpdatedAt).getTime();
-  const now = Date.now();
-  const maxAgeMs = refreshIntervalSeconds * 1000;
-  
-  return (now - cacheTime) < maxAgeMs;
-}
-
 // POST /api/widget-data - Proxy data requests with credential injection and caching
 export async function POST(request: NextRequest) {
   const auth = validateAuthOrInternal(request);
@@ -153,14 +136,20 @@ export async function POST(request: NextRequest) {
     // Check if we have fresh cached data (unless force refresh)
     if (!forceRefresh && widget.data_cache && widget.data_updated_at) {
       if (isCacheFresh(widget.data_updated_at, refreshInterval)) {
-        const cachedData = JSON.parse(widget.data_cache) as CachedData;
-        return NextResponse.json({
-          data: cachedData.data,
-          provider: cachedData.provider,
-          cached: true,
-          cachedAt: cachedData.fetchedAt,
-          timestamp: new Date().toISOString()
-        });
+        // Safely parse cached data (handles corrupted JSON)
+        const cachedData = parseCachedData(widget.data_cache);
+        
+        // Validate cache is for the same endpoint/provider (Issue #2: prevents wrong data for different endpoints)
+        if (cachedData && isCacheValidForRequest(cachedData, body.query.endpoint, body.provider)) {
+          return NextResponse.json({
+            data: cachedData.data,
+            provider: cachedData.provider,
+            cached: true,
+            cachedAt: cachedData.fetchedAt,
+            timestamp: new Date().toISOString()
+          });
+        }
+        // Cache miss: either parse failed or endpoint/provider mismatch - will fetch fresh below
       }
     }
 
