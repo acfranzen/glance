@@ -16,9 +16,9 @@ interface WidgetAboutModalProps {
   widgetName: string;
 }
 
-interface AgentCredential {
+interface CredentialInfo {
   id: string;
-  type: 'agent';
+  type: 'api_key' | 'local_software' | 'oauth' | 'agent';
   name: string;
   agent_tool?: string;
   agent_auth_check?: string;
@@ -33,7 +33,7 @@ interface WidgetBasicInfo {
   updated_at: string;
   refresh_interval: number;
   default_size: { w: number; h: number };
-  credentials?: Array<{ id: string; type: string; name: string; agent_tool?: string; agent_auth_check?: string }>;
+  credentials?: CredentialInfo[];
 }
 
 export function WidgetAboutModal({ open, onOpenChange, widgetSlug, widgetName }: WidgetAboutModalProps) {
