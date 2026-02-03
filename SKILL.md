@@ -237,15 +237,15 @@ await sleep(1000);
 await process.sendKeys(session.id, ['Right', 'Right']); // Navigate to Usage tab
 await sleep(1000);
 
-// Capture output, parse, and POST to Glance
+// Capture output, parse, and write directly to cache file
 const log = await process.log(session.id);
 const usage = parseClaudeUsage(log); // Strip ANSI, extract percentages
 
-await fetch('http://localhost:3333/api/widgets/claude-max/data', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(usage)
-});
+// Write to cache file (Glance reads from here)
+await fs.writeFile('/tmp/claude-usage-cache.json', JSON.stringify({
+  ...usage,
+  capturedAt: new Date().toISOString()
+}));
 ```
 
 **Cache file format** (`/tmp/claude-usage-cache.json`):
