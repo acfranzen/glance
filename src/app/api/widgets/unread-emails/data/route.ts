@@ -96,7 +96,7 @@ async function fetchEmailBody(messageId: string): Promise<string> {
   
   try {
     const { stdout, stderr } = await execAsync(
-      `"${gogPath}" gmail read "${messageId}" --format plain --account="${account}"`,
+      `"${gogPath}" gmail thread get "${messageId}" --plain --account="${account}"`,
       {
         timeout: 15000,
         env: process.env as NodeJS.ProcessEnv,
@@ -160,7 +160,7 @@ async function generateSummary(emailBody: string, subject: string): Promise<stri
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251022',
+        model: 'claude-3-5-haiku-latest',
         max_tokens: 100,
         messages: [
           {
