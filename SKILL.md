@@ -358,6 +358,17 @@ Content-Type: application/json
 
 ## Credential Requirements Format
 
+### Credential Types
+
+| Type | Storage | Description | Use For |
+|------|---------|-------------|---------|
+| `api_key` | Glance DB (encrypted) | API tokens stored in Glance | GitHub PAT, OpenWeather key |
+| `local_software` | Agent's machine | Software that must be installed | Homebrew, Docker |
+| `agent` | Agent environment | Auth that lives on the agent | `gh` CLI auth, `gcloud` auth |
+| `oauth` | Glance DB | OAuth tokens (future) | Google Calendar |
+
+### Examples
+
 ```json
 {
   "credentials": [
@@ -375,10 +386,21 @@ Content-Type: application/json
       "name": "Homebrew",
       "check_command": "which brew",
       "install_url": "https://brew.sh"
+    },
+    {
+      "id": "github_cli",
+      "type": "agent",
+      "name": "GitHub CLI",
+      "description": "Agent needs gh CLI authenticated to GitHub",
+      "agent_tool": "gh",
+      "agent_auth_check": "gh auth status",
+      "agent_auth_instructions": "Run `gh auth login` on the machine running OpenClaw"
     }
   ]
 }
 ```
+
+**When to use `agent` type:** Use for `agent_refresh` widgets where the agent collects data using CLI tools that have their own auth (like `gh`, `gcloud`, `aws`). These credentials aren't stored in Glance — they exist in the agent's environment.
 
 ## Common Credential Providers
 

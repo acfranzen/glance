@@ -7,13 +7,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Zap, User, Calendar, RefreshCw } from 'lucide-react';
+import { Zap, User, Calendar, RefreshCw, Bot } from 'lucide-react';
 
 interface WidgetAboutModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   widgetSlug: string;
   widgetName: string;
+}
+
+interface CredentialInfo {
+  id: string;
+  type: 'api_key' | 'local_software' | 'oauth' | 'agent';
+  name: string;
+  agent_tool?: string;
+  agent_auth_check?: string;
 }
 
 interface WidgetBasicInfo {
@@ -25,6 +33,7 @@ interface WidgetBasicInfo {
   updated_at: string;
   refresh_interval: number;
   default_size: { w: number; h: number };
+  credentials?: CredentialInfo[];
 }
 
 export function WidgetAboutModal({ open, onOpenChange, widgetSlug, widgetName }: WidgetAboutModalProps) {
@@ -112,6 +121,29 @@ export function WidgetAboutModal({ open, onOpenChange, widgetSlug, widgetName }:
                 <span>Refreshes every {formatDuration(info.refresh_interval)}</span>
               </div>
             </div>
+
+            {/* Show agent requirements if any */}
+            {info.credentials?.some(c => c.type === 'agent') && (
+              <div className="space-y-2 pt-2 border-t">
+                <div className="flex items-center gap-2 text-sm font-medium text-purple-400">
+                  <Bot className="h-4 w-4" />
+                  <span>Agent Requirements</span>
+                </div>
+                <div className="space-y-1">
+                  {info.credentials
+                    .filter(c => c.type === 'agent')
+                    .map(cred => (
+                      <div key={cred.id} className="flex items-center gap-2 text-xs text-muted-foreground bg-purple-500/10 rounded px-2 py-1">
+                        <span className="font-medium text-purple-400">{cred.agent_tool || cred.name}</span>
+                        {cred.agent_auth_check && (
+                          <code className="text-[10px] opacity-75">({cred.agent_auth_check})</code>
+                        )}
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            )}
 
             <div className="pt-2 border-t">
               <code className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">

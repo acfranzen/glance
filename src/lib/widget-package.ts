@@ -190,7 +190,7 @@ export function validateWidgetPackage(pkg: WidgetPackage): ValidationResult {
       }
       if (
         cred.type &&
-        !["api_key", "local_software", "oauth"].includes(cred.type)
+        !["api_key", "local_software", "oauth", "agent"].includes(cred.type)
       ) {
         errors.push(`Credential ${cred.id || "unknown"} has invalid type`);
       }
