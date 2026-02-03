@@ -33,14 +33,28 @@ export function WidgetAboutModal({ open, onOpenChange, widgetSlug, widgetName }:
 
   useEffect(() => {
     if (open && widgetSlug) {
+      const controller = new AbortController();
       setLoading(true);
-      fetch(`/api/widgets/${widgetSlug}`)
-        .then(res => res.json())
+      setInfo(null);
+
+      fetch(`/api/widgets/${widgetSlug}`, { signal: controller.signal })
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+          }
+          return res.json();
+        })
         .then(data => {
           setInfo(data);
           setLoading(false);
         })
-        .catch(() => setLoading(false));
+        .catch((err) => {
+          if (err.name !== 'AbortError') {
+            setLoading(false);
+          }
+        });
+
+      return () => controller.abort();
     }
   }, [open, widgetSlug]);
 
