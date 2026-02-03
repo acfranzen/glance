@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateAuthOrInternal } from "@/lib/auth";
 import { getCustomWidgetBySlug, setCachedWidgetData, getCachedWidgetData, getWidgetsByCustomWidgetId } from "@/lib/db";
+import { validateDataSchema, formatValidationErrors } from "@/lib/schema-validator";
 
 // Prevent static generation - this route requires runtime database access
 export const dynamic = "force-dynamic";
@@ -129,6 +130,19 @@ export async function POST(
 
   if (body.data === undefined) {
     return NextResponse.json({ error: "data field is required" }, { status: 400 });
+  }
+
+  // Validate data against widget's schema if defined
+  if (widget.dataSchema) {
+    const validation = validateDataSchema(body.data, widget.dataSchema);
+    if (!validation.valid) {
+      return NextResponse.json({ 
+        error: "Data validation failed against widget schema",
+        validation_errors: validation.errors,
+        message: formatValidationErrors(validation.errors),
+        expected_schema: widget.dataSchema,
+      }, { status: 400 });
+    }
   }
 
   // Get or create widget instance

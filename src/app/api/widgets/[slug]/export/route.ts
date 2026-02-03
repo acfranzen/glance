@@ -76,6 +76,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       credentials: widget.credentials,
       setup: widget.setup || undefined,
       fetch: widget.fetch,
+      data_schema: widget.dataSchema || undefined,
     };
 
     const validation = validateWidgetPackage(pkg);
@@ -85,6 +86,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       meta: pkg.meta,
       credentials_count: widget.credentials.length,
       has_setup: !!widget.setup,
+      has_data_schema: !!widget.dataSchema,
       fetch_type: widget.fetch.type,
       validation: {
         valid: validation.valid,

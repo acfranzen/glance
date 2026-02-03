@@ -12,6 +12,7 @@ import {
   SetupConfig,
   FetchConfig,
   CacheConfig,
+  DataSchema,
 } from "./db";
 
 // Re-export types for convenience
@@ -55,6 +56,9 @@ export interface WidgetPackage {
   setup?: SetupConfig;
   fetch: FetchConfig;
   cache?: CacheConfig;
+  
+  // Data validation schema (JSON Schema format)
+  data_schema?: DataSchema;
 }
 
 /**
@@ -96,6 +100,7 @@ export function encodeWidgetPackage(
     setup: widget.setup || undefined,
     fetch: widget.fetch,
     cache: widget.cache || undefined,
+    data_schema: widget.dataSchema || undefined,
   };
 
   const json = JSON.stringify(pkg);
@@ -312,6 +317,7 @@ export function packageToWidget(pkg: WidgetPackage): Omit<
     fetch: pkg.fetch,
     cache: pkg.cache || null,
     author: pkg.meta.author || null,
+    dataSchema: pkg.data_schema || null,
   };
 }
 
