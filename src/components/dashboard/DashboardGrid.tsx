@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useState, useEffect, useRef, ComponentType } from "react";
-import dynamic from "next/dynamic";
+import { useCallback, useState, useEffect, useRef } from "react";
+import ReactGridLayout, { WidthProvider } from "react-grid-layout/legacy";
 import { useWidgetStore } from "@/lib/store/widget-store";
 import { DynamicWidgetLoader } from "@/components/widgets/DynamicWidget";
 import { WidgetContainer } from "@/components/widgets/WidgetContainer";
@@ -17,13 +17,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreVertical, Info, Settings, Download } from "lucide-react";
 import type { Widget } from "@/types/api";
-
-// Dynamic import to avoid SSR issues with react-grid-layout
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const GridLayout: ComponentType<any> = dynamic(
-  () => import("react-grid-layout").then((mod) => mod.default),
-  { ssr: false },
-);
+import "react-grid-layout/css/styles.css";
+import "react-resizable/css/styles.css";
 
 interface LayoutItem {
   i: string;
@@ -46,9 +41,41 @@ export function DashboardGrid() {
     initialize,
     isLoading,
   } = useWidgetStore();
+  // Width measurement (SSR-safe)
+  // Use window.innerWidth on client for immediate mobile detection
   const [width, setWidth] = useState(1200);
-  const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Set mounted and initial width from window on client hydration
+  useEffect(() => {
+    setMounted(true);
+    // Use window width for initial mobile detection
+    if (typeof window !== 'undefined') {
+      setWidth(window.innerWidth);
+    }
+  }, []);
+  
+  // Refine width with ResizeObserver once container is in DOM
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    // Measure container
+    const measure = () => {
+      const w = container.offsetWidth;
+      if (w > 0) setWidth(w);
+    };
+    measure();
+    
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  });
+  
+  // Derive mobile state from width
+  const isMobile = width < 640;
+  
   const [exportModal, setExportModal] = useState<{
     open: boolean;
     slug: string;
@@ -81,38 +108,7 @@ export function DashboardGrid() {
     initialize();
   }, [initialize]);
 
-  useEffect(() => {
-    setMounted(true);
-    const updateWidth = () => {
-      const container = document.getElementById("dashboard-container");
-      if (container) {
-        setWidth(container.offsetWidth);
-      }
-      // Use 640px (sm breakpoint) for mobile detection
-      setIsMobile(window.innerWidth < 640);
-    };
-
-    // Use ResizeObserver for accurate width tracking
-    const container = document.getElementById("dashboard-container");
-    let resizeObserver: ResizeObserver | null = null;
-    
-    if (container && typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(() => {
-        updateWidth();
-      });
-      resizeObserver.observe(container);
-    }
-
-    // Initial update with slight delay to ensure layout is complete
-    updateWidth();
-    setTimeout(updateWidth, 100);
-    
-    window.addEventListener("resize", updateWidth);
-    return () => {
-      window.removeEventListener("resize", updateWidth);
-      resizeObserver?.disconnect();
-    };
-  }, []);
+  // Width management handled by ResizeObserver effect above
 
   // Track pending layout changes (only saved when exiting edit mode)
   // Separate refs for desktop and mobile layouts
@@ -146,15 +142,16 @@ export function DashboardGrid() {
   }, [isMobile, isEditing]);
 
   const handleLayoutChange = useCallback(
-    (newLayout: LayoutItem[]) => {
+    (newLayout: readonly LayoutItem[]) => {
       if (!Array.isArray(newLayout)) return;
 
       // Only track changes when in edit mode
+      // Copy to mutable array for storage
       if (isEditing) {
         if (isMobile) {
-          pendingMobileLayoutRef.current = newLayout;
+          pendingMobileLayoutRef.current = [...newLayout];
         } else {
-          pendingDesktopLayoutRef.current = newLayout;
+          pendingDesktopLayoutRef.current = [...newLayout];
         }
       }
     },
@@ -254,7 +251,9 @@ export function DashboardGrid() {
     }
   };
 
-  if (!mounted) {
+  // Don't render grid until we have a valid width measurement
+  // Skip this check if we have any reasonable width (prevents infinite loading)
+  if (width < 100) {
     return (
       <div className="flex h-64 items-center justify-center text-muted-foreground">
         <div className="animate-pulse">Loading...</div>
@@ -292,17 +291,55 @@ export function DashboardGrid() {
     static: !isEditing,
   }));
 
-  // Grid configuration
+  // Grid configuration - double-check mobile detection at render time
   const cols = isMobile ? 2 : 12;
   // Responsive margins: smaller on mobile
   const gridMargin: [number, number] = isMobile ? [8, 8] : [16, 16];
   // Responsive row height: slightly smaller on mobile for better density
   const rowHeight = isMobile ? 90 : 100;
 
+  // On mobile, bypass react-grid-layout entirely - it has fundamental issues
+  // with width calculations. Use a simple flexbox stack instead.
+  // On mobile, use simple flexbox stack (RGL has issues with very small widths)
+  if (isMobile) {
+    return (
+      <>
+        <div ref={containerRef} id="dashboard-container" className="w-full">
+          <div className="flex flex-col gap-4">
+            {widgets.map((widget) => (
+              <div key={widget.id} className="w-full min-h-[200px]">
+                {renderWidget(widget)}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <WidgetExportModal
+          open={exportModal.open}
+          onOpenChange={(open) => setExportModal({ ...exportModal, open })}
+          widgetSlug={exportModal.slug}
+          widgetName={exportModal.name}
+        />
+        <WidgetAboutModal
+          open={aboutModal.open}
+          onOpenChange={(open) => setAboutModal({ ...aboutModal, open })}
+          widgetSlug={aboutModal.slug}
+          widgetName={aboutModal.name}
+        />
+        <WidgetInfoModal
+          open={settingsModal.open}
+          onOpenChange={(open) => setSettingsModal({ ...settingsModal, open })}
+          widgetSlug={settingsModal.slug}
+          widgetName={settingsModal.name}
+        />
+      </>
+    );
+  }
+
   return (
     <>
-      <div id="dashboard-container" className={`w-full ${isEditing ? 'select-none' : ''}`}>
-        <GridLayout
+      <div ref={containerRef} id="dashboard-container" className={`w-full ${isEditing ? 'select-none' : ''}`}>
+        <ReactGridLayout
           className="layout"
           layout={responsiveLayout}
           cols={cols}
@@ -321,7 +358,7 @@ export function DashboardGrid() {
               {renderWidget(widget)}
             </div>
           ))}
-        </GridLayout>
+        </ReactGridLayout>
       </div>
 
       <WidgetExportModal
