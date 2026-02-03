@@ -25,7 +25,7 @@ const DEFAULT_SIZES: Record<string, { w: number; h: number }> = {
   openai_usage: { w: 3, h: 3 },
 };
 
-// GET /api/widgets - List all widgets
+// GET /api/widgets/instances - List all widget instances
 export async function GET(request: NextRequest) {
   const auth = validateAuthOrInternal(request);
   if (!auth.authorized) {
@@ -48,15 +48,15 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ widgets });
   } catch (error) {
-    console.error('Failed to fetch widgets:', error);
+    console.error('Failed to fetch widget instances:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch widgets' },
+      { error: 'Failed to fetch widget instances' },
       { status: 500 }
     );
   }
 }
 
-// POST /api/widgets - Create a widget
+// POST /api/widgets/instances - Create a widget instance
 export async function POST(request: NextRequest) {
   const auth = validateAuthOrInternal(request);
   if (!auth.authorized) {
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
 
     const created = getWidget(id);
     if (!created) {
-      throw new Error('Failed to create widget');
+      throw new Error('Failed to create widget instance');
     }
 
     const widget: Widget = {
@@ -124,9 +124,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(widget, { status: 201 });
   } catch (error) {
-    console.error('Failed to create widget:', error);
+    console.error('Failed to create widget instance:', error);
     return NextResponse.json(
-      { error: 'Failed to create widget' },
+      { error: 'Failed to create widget instance' },
       { status: 500 }
     );
   }

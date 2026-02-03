@@ -100,7 +100,7 @@ async function checkLocalSoftware(cred: CredentialRequirement): Promise<boolean>
   if (!cred.check_command) {
     return false;
   }
-  
+
   try {
     await execAsync(cred.check_command, { timeout: 5000 });
     return true;
@@ -167,7 +167,7 @@ async function checkSetupStatus(
   let isConfigured = false;
   if (pkg.setup.verification) {
     const { type, target } = pkg.setup.verification;
-    
+
     if (type === "command_succeeds") {
       try {
         await execAsync(target, { timeout: 5000 });
@@ -194,9 +194,9 @@ async function checkSetupStatus(
  */
 function checkFetchStatus(pkg: WidgetPackage, setupStatus: SetupStatus): FetchStatus {
   const { fetch } = pkg;
-  
+
   let ready = false;
-  
+
   switch (fetch.type) {
     case "server_code":
       // Ready if credentials are configured
@@ -221,7 +221,7 @@ function checkFetchStatus(pkg: WidgetPackage, setupStatus: SetupStatus): FetchSt
 }
 
 /**
- * POST /api/packages/import - Import a widget from a package string
+ * POST /api/widgets/import - Import a widget from a package string
  *
  * Body:
  * - package: The encoded widget package string (!GW1!...)
@@ -313,19 +313,19 @@ export async function POST(request: NextRequest) {
 
     // Determine blocking issues
     const blockingIssues: string[] = [];
-    
+
     // Missing credentials are warnings, not blocking (user can import and configure later)
     const missingCredentials = credentialStatuses.filter(
       (c) => c.status === "missing" || c.status === "not_installed",
     );
-    
+
     // Setup not configured is a warning for dry_run, but widget can still be imported
     if (setupStatus.status === "not_configured" && !dry_run) {
       // Not blocking - widget can be imported, setup done later
     }
 
     const readyToImport = validation.valid;
-    
+
     // Build message
     let message = "Widget is ready to import.";
     if (missingCredentials.length > 0) {
@@ -369,8 +369,8 @@ export async function POST(request: NextRequest) {
 
     // Use cache config from package, or create default based on fetch type
     const cacheConfig = widgetData.cache ?? (
-      widgetData.fetch.type === 'agent_refresh' 
-        ? { 
+      widgetData.fetch.type === 'agent_refresh'
+        ? {
             ttl_seconds: widgetData.fetch.expected_freshness_seconds ?? 300,
             max_staleness_seconds: widgetData.fetch.max_staleness_seconds ?? 900,
             on_error: 'use_stale' as const,

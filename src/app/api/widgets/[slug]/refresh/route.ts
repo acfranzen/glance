@@ -23,7 +23,7 @@ function ensureRefreshRequestsTable(): void {
   `);
 }
 
-// POST /api/widgets/[slug]/request-refresh
+// POST /api/widgets/[slug]/refresh
 // Stores a refresh request and optionally wakes OpenClaw agent
 export async function POST(
   request: NextRequest,
@@ -103,7 +103,7 @@ export async function POST(
   }
 }
 
-// GET /api/widgets/[slug]/request-refresh
+// GET /api/widgets/[slug]/refresh
 // Check for pending refresh requests (used by agent)
 export async function GET(
   request: NextRequest,
@@ -152,7 +152,7 @@ export async function GET(
   }
 }
 
-// DELETE /api/widgets/[slug]/request-refresh
+// DELETE /api/widgets/[slug]/refresh
 // Mark refresh request as processed (called by agent after refresh)
 export async function DELETE(
   request: NextRequest,

@@ -6,7 +6,7 @@ import { validateAuthOrInternal } from '@/lib/auth';
 import { getDataProviderBySlug, type DataProvider } from '@/lib/db';
 import { getCredentialValue, getCredential, Provider } from '@/lib/credentials';
 
-interface WidgetDataRequest {
+interface WidgetProxyRequest {
   widget_id: string;
   provider: string;
   query: {
@@ -21,7 +21,7 @@ interface WidgetDataRequest {
 function buildUrl(baseUrl: string, endpoint: string, params?: Record<string, string | number | boolean>): string {
   let url = endpoint;
   const remainingParams = params ? { ...params } : {};
-  
+
   // Replace path parameters like {owner} with values from params
   url = url.replace(/\{(\w+)\}/g, (_, key) => {
     const value = remainingParams[key];
@@ -51,7 +51,7 @@ function buildUrl(baseUrl: string, endpoint: string, params?: Record<string, str
 
 // Build headers based on provider auth type
 function buildHeaders(
-  provider: DataProvider, 
+  provider: DataProvider,
   credential: string | null
 ): Record<string, string> {
   const headers: Record<string, string> = {
@@ -67,12 +67,12 @@ function buildHeaders(
     case 'bearer':
       headers['Authorization'] = `Bearer ${credential}`;
       break;
-    
+
     case 'basic':
       // credential should be in format "username:password"
       headers['Authorization'] = `Basic ${Buffer.from(credential).toString('base64')}`;
       break;
-    
+
     case 'header':
       // credential should be in format "HeaderName: value"
       const colonIndex = credential.indexOf(':');
@@ -82,7 +82,7 @@ function buildHeaders(
         headers[headerName] = headerValue;
       }
       break;
-    
+
     case 'none':
       // No auth needed
       break;
@@ -91,7 +91,7 @@ function buildHeaders(
   return headers;
 }
 
-// POST /api/widget-data - Proxy data requests with credential injection
+// POST /api/widgets/proxy - Proxy data requests with credential injection
 export async function POST(request: NextRequest) {
   const auth = validateAuthOrInternal(request);
   if (!auth.authorized) {
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body: WidgetDataRequest = await request.json();
+    const body: WidgetProxyRequest = await request.json();
 
     // Validate request
     if (!body.widget_id) {
@@ -116,17 +116,17 @@ export async function POST(request: NextRequest) {
 
     // Look up the provider by slug from database
     const provider = getDataProviderBySlug(body.provider);
-    
+
     if (!provider) {
       return NextResponse.json(
-        { error: `Unknown provider: ${body.provider}. Create it via /api/data-providers first.` },
+        { error: `Unknown provider: ${body.provider}` },
         { status: 404 }
       );
     }
 
     // Get credential if provider has one configured
     let credential: string | null = null;
-    
+
     if (provider.credential_id) {
       // Use specific credential from database
       credential = getCredentialValue(provider.credential_id);
@@ -161,8 +161,8 @@ export async function POST(request: NextRequest) {
     const response = await fetch(url, {
       method,
       headers,
-      body: method !== 'GET' && body.query.body 
-        ? JSON.stringify(body.query.body) 
+      body: method !== 'GET' && body.query.body
+        ? JSON.stringify(body.query.body)
         : undefined,
     });
 
@@ -170,12 +170,12 @@ export async function POST(request: NextRequest) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Provider ${provider.name} returned ${response.status}:`, errorText);
-      
+
       return NextResponse.json(
-        { 
+        {
           error: `Provider returned ${response.status}`,
-          details: response.status === 401 
-            ? 'Authentication failed. Check your credentials.' 
+          details: response.status === 401
+            ? 'Authentication failed. Check your credentials.'
             : errorText.slice(0, 200)
         },
         { status: response.status }
@@ -185,21 +185,21 @@ export async function POST(request: NextRequest) {
     // Parse and return data
     const contentType = response.headers.get('content-type');
     let data;
-    
+
     if (contentType?.includes('application/json')) {
       data = await response.json();
     } else {
       data = await response.text();
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       data,
       provider: provider.slug,
       cached: false,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Widget data request failed:', error);
+    console.error('Widget proxy request failed:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Request failed' },
       { status: 500 }

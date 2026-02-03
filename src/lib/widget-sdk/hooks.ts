@@ -11,7 +11,7 @@ export interface UseDataOptions {
 }
 
 /**
- * Hook for fetching data from providers (proxied through /api/widget-data)
+ * Hook for fetching data from providers (proxied through /api/widgets/proxy)
  * When serverCodeEnabled is true, it calls the execute endpoint instead.
  *
  * Usage in widget code:
@@ -61,7 +61,7 @@ export function createUseData(options: UseDataOptions) {
           });
         } else {
           // Normal data provider flow
-          response = await fetch('/api/widget-data', {
+          response = await fetch('/api/widgets/proxy', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

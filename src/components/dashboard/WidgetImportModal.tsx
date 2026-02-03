@@ -120,7 +120,7 @@ export function WidgetImportModal({
     setError(null);
 
     try {
-      const response = await fetch('/api/packages/import', {
+      const response = await fetch('/api/widgets/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -150,7 +150,7 @@ export function WidgetImportModal({
     setError(null);
 
     try {
-      const response = await fetch('/api/packages/import', {
+      const response = await fetch('/api/widgets/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

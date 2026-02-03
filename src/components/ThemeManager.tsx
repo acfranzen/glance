@@ -43,7 +43,7 @@ export function useCustomTheme() {
   const loadAndApplyTheme = useCallback(
     async (currentTheme?: string) => {
       try {
-        const response = await fetch("/api/theme");
+        const response = await fetch("/api/layout");
         if (!response.ok) return;
 
         const { theme } = await response.json();
@@ -58,8 +58,8 @@ export function useCustomTheme() {
   const saveTheme = useCallback(
     async (name: string, lightCss: string, darkCss: string) => {
       try {
-        const response = await fetch("/api/theme", {
-          method: "POST",
+        const response = await fetch("/api/layout", {
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name, lightCss, darkCss }),
         });
@@ -81,7 +81,7 @@ export function useCustomTheme() {
 
   const clearTheme = useCallback(async () => {
     try {
-      await fetch("/api/theme", { method: "DELETE" });
+      await fetch("/api/layout", { method: "DELETE" });
 
       // Remove the style element
       const existingStyle = document.getElementById(THEME_STYLE_ID);

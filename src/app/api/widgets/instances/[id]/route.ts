@@ -10,7 +10,7 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// GET /api/widgets/:id - Get a single widget
+// GET /api/widgets/instances/:id - Get a single widget instance
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const auth = validateAuthOrInternal(request);
   if (!auth.authorized) {
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const row = getWidget(id);
     if (!row) {
       return NextResponse.json(
-        { error: 'Widget not found' },
+        { error: 'Widget instance not found' },
         { status: 404 }
       );
     }
@@ -41,15 +41,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(widget);
   } catch (error) {
-    console.error('Failed to fetch widget:', error);
+    console.error('Failed to fetch widget instance:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch widget' },
+      { error: 'Failed to fetch widget instance' },
       { status: 500 }
     );
   }
 }
 
-// PATCH /api/widgets/:id - Update a widget
+// PATCH /api/widgets/instances/:id - Update a widget instance
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const auth = validateAuthOrInternal(request);
   if (!auth.authorized) {
@@ -62,7 +62,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const existing = getWidget(id);
     if (!existing) {
       return NextResponse.json(
-        { error: 'Widget not found' },
+        { error: 'Widget instance not found' },
         { status: 404 }
       );
     }
@@ -78,7 +78,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const updated = getWidget(id);
     if (!updated) {
-      throw new Error('Failed to update widget');
+      throw new Error('Failed to update widget instance');
     }
 
     const widget: Widget = {
@@ -94,15 +94,15 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json(widget);
   } catch (error) {
-    console.error('Failed to update widget:', error);
+    console.error('Failed to update widget instance:', error);
     return NextResponse.json(
-      { error: 'Failed to update widget' },
+      { error: 'Failed to update widget instance' },
       { status: 500 }
     );
   }
 }
 
-// DELETE /api/widgets/:id - Delete a widget
+// DELETE /api/widgets/instances/:id - Delete a widget instance
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   const auth = validateAuthOrInternal(request);
   if (!auth.authorized) {
@@ -115,7 +115,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const existing = getWidget(id);
     if (!existing) {
       return NextResponse.json(
-        { error: 'Widget not found' },
+        { error: 'Widget instance not found' },
         { status: 404 }
       );
     }
@@ -124,9 +124,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Failed to delete widget:', error);
+    console.error('Failed to delete widget instance:', error);
     return NextResponse.json(
-      { error: 'Failed to delete widget' },
+      { error: 'Failed to delete widget instance' },
       { status: 500 }
     );
   }

@@ -14,7 +14,7 @@ import {
 } from "@/lib/db";
 
 /**
- * GET /api/setups - List all setup records or get a specific one
+ * GET /api/widgets/setups - List all setup records or get a specific one
  *
  * Query params:
  * - widget_slug: Get setup for a specific widget
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/setups - Create or update a setup record
+ * POST /api/widgets/setups - Create or update a setup record
  *
  * Body:
  * - widget_slug: The widget slug this setup is for
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * DELETE /api/setups - Delete a setup record
+ * DELETE /api/widgets/setups - Delete a setup record
  *
  * Query params:
  * - id: The setup record ID to delete

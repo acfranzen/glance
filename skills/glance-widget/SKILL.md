@@ -60,10 +60,10 @@ Is data available via API that the widget can call?
 ### Widget Instances (Dashboard)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/dashboard` | Add widget to dashboard |
-| `GET` | `/api/dashboard` | List dashboard widgets |
-| `PATCH` | `/api/dashboard/:id` | Update instance (config, position) |
-| `DELETE` | `/api/dashboard/:id` | Remove from dashboard |
+| `POST` | `/api/widgets/instances` | Add widget to dashboard |
+| `GET` | `/api/widgets/instances` | List dashboard widgets |
+| `PATCH` | `/api/widgets/instances/:id` | Update instance (config, position) |
+| `DELETE` | `/api/widgets/instances/:id` | Remove from dashboard |
 
 ### Credentials
 | Method | Endpoint | Description |
@@ -155,7 +155,7 @@ Content-Type: application/json
 ### Step 2: Add to Dashboard
 
 ```http
-POST /api/dashboard
+POST /api/widgets/instances
 Content-Type: application/json
 
 {
@@ -389,7 +389,7 @@ Content-Type: application/json
 ### Export
 
 ```http
-GET /api/packages/{slug}
+GET /api/widgets/{slug}/export
 ```
 
 Returns: `{ "package": "!GW1!eJxVj8EKwj..." }`
@@ -397,7 +397,7 @@ Returns: `{ "package": "!GW1!eJxVj8EKwj..." }`
 ### Import
 
 ```http
-POST /api/packages/import
+POST /api/widgets/import
 Content-Type: application/json
 
 {
@@ -484,7 +484,7 @@ Error codes: `CREDENTIAL_MISSING`, `RATE_LIMITED`, `NETWORK_ERROR`, `API_ERROR`
 To summarize dashboard for user:
 
 ```
-1. GET /api/dashboard → list instances
+1. GET /api/widgets/instances → list instances
 2. For each: POST /api/widgets/:slug/execute
 3. Combine into natural language summary
 ```

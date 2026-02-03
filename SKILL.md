@@ -19,16 +19,20 @@ Personal dashboard at `$GLANCE_URL` (default: `http://localhost:3333`).
 
 ## API Overview
 
-| Endpoint                      | Method | Purpose                          |
-| ----------------------------- | ------ | -------------------------------- |
-| `/api/credentials`            | POST   | Store API keys (encrypted)       |
-| `/api/credentials`            | GET    | List stored credentials + status |
-| `/api/widgets`                | POST   | Create widget definition (code)  |
-| `/api/widgets`                | GET    | List widget definitions          |
-| `/api/widgets/:slug`          | PATCH  | Update widget definition         |
-| `/api/widgets/:slug/execute`  | POST   | Execute server code              |
-| `/api/dashboard`              | POST   | Add widget to dashboard          |
-| `/api/dashboard`              | GET    | List dashboard widgets           |
+| Endpoint                        | Method | Purpose                          |
+| ------------------------------- | ------ | -------------------------------- |
+| `/api/credentials`              | POST   | Store API keys (encrypted)       |
+| `/api/credentials`              | GET    | List stored credentials + status |
+| `/api/widgets`                  | POST   | Create widget definition (code)  |
+| `/api/widgets`                  | GET    | List widget definitions          |
+| `/api/widgets/:slug`            | PATCH  | Update widget definition         |
+| `/api/widgets/:slug/execute`    | POST   | Execute server code              |
+| `/api/widgets/:slug/export`     | GET    | Export widget as package         |
+| `/api/widgets/import`           | POST   | Import widget from package       |
+| `/api/widgets/instances`        | POST   | Add widget to dashboard          |
+| `/api/widgets/instances`        | GET    | List dashboard widgets           |
+| `/api/widgets/instances/:id`    | PATCH  | Update instance (config, position)|
+| `/api/widgets/instances/:id`    | DELETE | Remove from dashboard            |
 
 ## Creating a Widget (Full Workflow)
 
@@ -68,7 +72,7 @@ curl -X POST $GLANCE_URL/api/widgets \
 ### 3. Add to dashboard
 
 ```bash
-curl -X POST $GLANCE_URL/api/dashboard \
+curl -X POST $GLANCE_URL/api/widgets/instances \
   -H "Content-Type: application/json" \
   -d '{
     "type": "custom",

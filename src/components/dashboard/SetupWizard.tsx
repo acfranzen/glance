@@ -74,7 +74,7 @@ export function SetupWizard({
 
     try {
       // Mark the setup as complete
-      const response = await fetch('/api/setups', {
+      const response = await fetch('/api/widgets/setups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
