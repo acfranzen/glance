@@ -701,6 +701,65 @@ Authorization: Bearer <token>
 | Vercel      | `vercel`      | Vercel API for deployment widgets |
 | OpenWeather | `openweather` | Weather data API                  |
 
+### Agent Credentials
+
+Some widgets require authentication or tools that exist on the **OpenClaw agent's machine** rather than stored in Glance. These are called "agent credentials" and use the `type: "agent"` in the widget package.
+
+| Credential Type | Where It Lives | Example |
+|-----------------|----------------|---------|
+| `api_key` | Glance database (encrypted) | GitHub PAT, OpenWeather key |
+| `local_software` | Agent's machine | Homebrew, Docker |
+| `oauth` | Glance database | Google Calendar token |
+| `agent` | Agent environment | `gh` CLI auth, `gcloud` auth |
+
+**Agent credential fields:**
+
+```typescript
+{
+  "id": "github_cli",
+  "type": "agent",
+  "name": "GitHub CLI",
+  "description": "OpenClaw agent needs `gh` CLI authenticated",
+  "agent_tool": "gh",                    // The CLI tool name
+  "agent_auth_check": "gh auth status",  // Command to verify auth
+  "agent_auth_instructions": "Run `gh auth login` on the machine running OpenClaw"
+}
+```
+
+**Why use agent credentials?**
+
+- **CLI tools are more powerful**: `gh pr list` returns richer data than the GitHub REST API
+- **No token management**: The agent uses its existing CLI authentication
+- **Local machine access**: Some data (like `gcloud` configs) can't be fetched via API
+
+**Example: Widget using agent credentials**
+
+```json
+{
+  "credentials": [
+    {
+      "id": "github_cli",
+      "type": "agent",
+      "name": "GitHub CLI",
+      "description": "Agent needs gh CLI authenticated to GitHub",
+      "agent_tool": "gh",
+      "agent_auth_check": "gh auth status",
+      "agent_auth_instructions": "Run `gh auth login` on the agent machine"
+    }
+  ],
+  "fetch": {
+    "type": "agent_refresh",
+    "instructions": "Run `gh pr list --repo owner/repo --json number,title,author,url,createdAt,isDraft` and POST results to /api/widgets/{slug}/cache",
+    "schedule": "*/30 * * * *"
+  }
+}
+```
+
+When importing a widget with agent credentials, Glance will:
+1. Show a warning that the widget requires agent-side authentication
+2. Display the `agent_tool` and `agent_auth_check` command
+3. Mark credentials as "Agent Required" (can't be verified server-side)
+
 ### Best Practices
 
 1. **Check before creating widgets:** Always verify required credentials exist before creating a widget that depends on them.
