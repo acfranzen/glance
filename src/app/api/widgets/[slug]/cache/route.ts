@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateAuthOrInternal } from "@/lib/auth";
 import { getCustomWidgetBySlug, setCachedWidgetData, getCachedWidgetData, getWidgetsByCustomWidgetId } from "@/lib/db";
-import { validateDataSchema, formatValidationErrors } from "@/lib/schema-validator";
+import Ajv from "ajv";
+import addFormats from "ajv-formats";
+
+const ajv = new Ajv({ allErrors: true });
+addFormats(ajv);
 
 // Prevent static generation - this route requires runtime database access
 export const dynamic = "force-dynamic";
@@ -134,12 +138,11 @@ export async function POST(
 
   // Validate data against widget's schema if defined
   if (widget.data_schema) {
-    const validation = validateDataSchema(body.data, widget.data_schema);
-    if (!validation.valid) {
+    const validate = ajv.compile(widget.data_schema);
+    if (!validate(body.data)) {
       return NextResponse.json({ 
         error: "Data validation failed against widget schema",
-        validation_errors: validation.errors,
-        message: formatValidationErrors(validation.errors),
+        validation_errors: validate.errors,
         expected_schema: widget.data_schema,
       }, { status: 400 });
     }
