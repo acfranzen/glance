@@ -29,20 +29,22 @@ Widget Package
 ## Fetch Type Decision Tree
 
 ```
-Is data available via API?
-├── YES → Can widget call directly (auth available)?
-│   ├── YES → Use server_code
-│   └── NO → Use agent_refresh
-└── NO → Use agent_refresh (agent computes/fetches)
+Is data available via API that the widget can call?
+├── YES → Use server_code
+└── NO → Does an external service push data?
+    ├── YES → Use webhook
+    └── NO → Use agent_refresh (YOU collect it)
 ```
 
-| Scenario | Fetch Type | Example |
-|----------|-----------|---------|
-| Authenticated API (GitHub, etc.) | `server_code` | GitHub PRs, Linear issues |
-| Public API with CORS | `server_code` | Weather APIs |
-| External webhook pushes data | `webhook` | Stripe events |
-| Local software required | `agent_refresh` | Homebrew packages |
-| Agent must compute/fetch | `agent_refresh` | System stats |
+| Scenario | Fetch Type | Who Collects Data? |
+|----------|-----------|-------------------|
+| Public/authenticated API | `server_code` | Widget calls API at render |
+| External service pushes data | `webhook` | External service POSTs to cache |
+| **Local CLI tools** | `agent_refresh` | **YOU (the agent) via PTY/exec** |
+| **Interactive terminals** | `agent_refresh` | **YOU (the agent) via PTY** |
+| **Computed/aggregated data** | `agent_refresh` | **YOU (the agent) on a schedule** |
+
+**⚠️ `agent_refresh` means YOU are the data source.** You set up a cron to remind yourself, then YOU collect the data using your tools (exec, PTY, browser, etc.) and POST it to the cache.
 
 ## API Endpoints
 
@@ -261,10 +263,73 @@ return await response.json();
 
 ## Agent Refresh Contract
 
-When `fetch.type = "agent_refresh"`, the agent MUST:
+**⚠️ CRITICAL: For `agent_refresh` widgets, YOU (the OpenClaw agent) are the data collector.**
 
-1. **Run on schedule** (cron expression in `fetch.schedule`)
-2. **Push data to cache endpoint:**
+This is NOT an external API or service. YOU must:
+1. Set up a **cron job to remind yourself** to collect data on a schedule
+2. **Use your own tools** (PTY, exec, browser, etc.) to gather the data
+3. **Parse the output** into structured JSON
+4. **POST to the cache endpoint** so the widget can display it
+
+### The Pattern
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Cron fires → Agent wakes up → Agent collects data →        │
+│  Agent POSTs to /cache → Widget displays fresh data         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Step-by-Step for agent_refresh Widgets
+
+1. **Create the widget** with `fetch.type = "agent_refresh"`
+2. **Set up a cron job** targeting YOUR main session:
+   ```javascript
+   cron.add({
+     name: "Widget: My Data Refresh",
+     schedule: { kind: "cron", expr: "*/15 * * * *" },
+     payload: { 
+       kind: "systemEvent", 
+       text: "⚡ WIDGET REFRESH: Collect data for my-widget and POST to cache" 
+     },
+     sessionTarget: "main"  // Reminds YOU, not an isolated session
+   })
+   ```
+3. **When the cron fires**, YOU collect the data using your tools:
+   - `exec` for shell commands
+   - PTY for interactive CLI tools (like `claude /status`)
+   - `browser` for web scraping
+   - API calls via `web_fetch`
+4. **POST the data to the cache:**
+   ```http
+   POST /api/custom-widgets/{slug}/cache
+   Content-Type: application/json
+   
+   {
+     "data": {
+       "myValue": 42,
+       "fetchedAt": "2026-02-03T18:30:00.000Z"
+     }
+   }
+   ```
+
+### Real Example: Claude Max Usage Widget
+
+This widget shows Claude CLI usage stats. The data comes from running `claude` in a PTY and navigating to `/status → Usage`.
+
+**The agent's job every 15 minutes:**
+```
+1. Spawn PTY: exec("claude", { pty: true })
+2. Send: "/status" + Enter
+3. Navigate to Usage tab (Right arrow keys)
+4. Parse the output: Session %, Week %, Extra %
+5. POST to /api/custom-widgets/claude-code-usage/cache
+6. Kill the PTY session
+```
+
+**This is YOUR responsibility as the agent.** The widget just displays whatever data is in the cache.
+
+### Cache Endpoint
 
 ```http
 POST /api/custom-widgets/{slug}/cache
@@ -278,25 +343,10 @@ Content-Type: application/json
 }
 ```
 
-3. **Always include `fetchedAt`** timestamp
-4. **Don't overwrite on errors** - let widget use stale data
-
-### Agent Refresh Example
-
-```javascript
-// Cron: */15 * * * *
-async function refreshHomebrew(slug) {
-  const result = await exec('brew list --formula | wc -l');
-  const count = parseInt(result.stdout.trim());
-  
-  await fetch(`${GLANCE_URL}/api/custom-widgets/${slug}/cache`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${TOKEN}` },
-    body: JSON.stringify({
-      data: { packageCount: count, fetchedAt: new Date().toISOString() }
-    })
-  });
-}
+### Rules
+- **Always include `fetchedAt`** timestamp
+- **Don't overwrite on errors** - let widget use stale data
+- **Use main session cron** so YOU handle the collection, not an isolated agent
 ```
 
 ## Credential Requirements Format
