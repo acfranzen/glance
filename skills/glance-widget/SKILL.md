@@ -72,15 +72,67 @@ Is data available via API?
 
 ## Creating a Widget
 
-### Step 1: Check Credentials
+### Full Widget Package Structure
 
-```http
-GET /api/credentials
+```json
+{
+  "name": "GitHub PRs",
+  "slug": "github-prs",
+  "description": "Shows open pull requests",
+  
+  "source_code": "function Widget({ serverData }) { ... }",
+  "default_size": { "w": 2, "h": 2 },
+  "min_size": { "w": 1, "h": 1 },
+  "refresh_interval": 300,
+  
+  "credentials": [
+    {
+      "id": "github",
+      "type": "api_key",
+      "name": "GitHub Personal Access Token",
+      "description": "Token with repo scope",
+      "obtain_url": "https://github.com/settings/tokens"
+    }
+  ],
+  
+  "fetch": {
+    "type": "agent_refresh",
+    "schedule": "*/5 * * * *",
+    "instructions": "Fetch open PRs from GitHub API and POST to cache endpoint",
+    "expected_freshness_seconds": 300,
+    "max_staleness_seconds": 900
+  },
+  
+  "cache": {
+    "ttl_seconds": 300,
+    "max_staleness_seconds": 900,
+    "storage": "sqlite",
+    "on_error": "use_stale"
+  },
+  
+  "setup": {
+    "description": "Configure GitHub token",
+    "agent_skill": "Store GitHub PAT via /api/credentials",
+    "verification": {
+      "type": "cache_populated",
+      "target": "github-prs"
+    },
+    "idempotent": true
+  }
+}
 ```
 
-Check `status.{provider}.configured` for required credentials.
+### Fetch Types
 
-### Step 2: Create Widget Definition
+| Type | When to Use | Data Flow |
+|------|-------------|-----------|
+| `server_code` | Widget can call API directly | Widget → server_code → API |
+| `agent_refresh` | Agent must fetch/compute data | Agent → POST /cache → Widget reads |
+| `webhook` | External service pushes data | External → POST /cache → Widget reads |
+
+**Most widgets should use `agent_refresh`** — the agent fetches data on a schedule and pushes to the cache endpoint.
+
+### Step 1: Create Widget Definition
 
 ```http
 POST /api/custom-widgets
@@ -88,17 +140,17 @@ Content-Type: application/json
 
 {
   "name": "GitHub PRs",
+  "slug": "github-prs",
   "description": "Shows open pull requests",
-  "source_code": "function Widget() { ... }",
-  "server_code": "const token = await getCredential('github'); ...",
-  "server_code_enabled": true,
-  "data_providers": ["github"],
-  "default_size": { "w": 4, "h": 3 },
-  "refresh_interval": 300
+  "source_code": "function Widget({ serverData }) { ... }",
+  "default_size": { "w": 2, "h": 2 },
+  "credentials": [...],
+  "fetch": { "type": "agent_refresh", "schedule": "*/5 * * * *", ... },
+  "cache": { "ttl_seconds": 300, ... }
 }
 ```
 
-### Step 3: Add to Dashboard
+### Step 2: Add to Dashboard
 
 ```http
 POST /api/widgets
@@ -112,57 +164,71 @@ Content-Type: application/json
 }
 ```
 
-## Widget Code Template
+### Step 3: Populate Cache (for agent_refresh)
+
+```http
+POST /api/custom-widgets/github-prs/cache
+Content-Type: application/json
+
+{
+  "data": {
+    "prs": [...],
+    "fetchedAt": "2026-02-03T14:00:00Z"
+  }
+}
+```
+
+## Widget Code Template (agent_refresh)
+
+For `agent_refresh` widgets, use `serverData` prop (NOT `useData` hook):
 
 ```tsx
-function Widget() {
-  const config = useConfig();
-  const { data, loading, error, refresh } = useData('github', {});
+function Widget({ serverData }) {
+  const data = serverData;
+  const loading = !serverData;
+  const error = serverData?.error;
   
-  if (loading) return <Loading />;
-  if (error) return <ErrorDisplay message={error.message} retry={refresh} />;
+  if (loading) return <Loading message="Waiting for data..." />;
+  if (error) return <ErrorDisplay message={error} />;
   
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle>Widget Title</CardTitle>
+        <CardTitle>GitHub PRs</CardTitle>
       </CardHeader>
       <CardContent>
-        <List items={data.map(item => ({
-          title: item.name,
-          subtitle: item.description
-        }))} />
+        <List items={data.prs?.map(pr => ({
+          title: pr.title,
+          subtitle: `#${pr.number} by ${pr.author}`,
+          badge: pr.state
+        })) || []} />
       </CardContent>
+      {data.fetchedAt && (
+        <div className="text-xs text-muted-foreground p-2">
+          Updated {new Date(data.fetchedAt).toLocaleTimeString()}
+        </div>
+      )}
     </Card>
   );
 }
 ```
 
-## Server Code Template
+**Key difference:** `agent_refresh` widgets receive data via `serverData` prop, NOT by calling `useData()`. The agent pushes data to `/api/custom-widgets/{slug}/cache`.
+
+## Server Code (Legacy Alternative)
+
+**Prefer `agent_refresh` over `server_code`.** Only use server_code when the widget MUST execute code at render time (rare).
 
 ```javascript
+// Only for fetch.type = "server_code" widgets
 const token = await getCredential('github');
-
 const response = await fetch('https://api.github.com/repos/owner/repo/pulls', {
-  headers: {
-    'Authorization': `Bearer ${token}`,
-    'Accept': 'application/vnd.github+json'
-  }
+  headers: { 'Authorization': `Bearer ${token}` }
 });
-
-if (!response.ok) {
-  return { error: { code: 'API_ERROR', message: `API returned ${response.status}` }};
-}
-
 return await response.json();
 ```
 
-**Available in server code:**
-- `fetch` - HTTP requests
-- `getCredential(provider)` - Get decrypted credential
-- `params` - Parameters from widget config
-- `console.log/warn/error` - Logging
-
+**Available:** `fetch`, `getCredential(provider)`, `params`, `console`
 **Blocked:** `require`, `eval`, `fs`, `process`, `global`
 
 ## Agent Refresh Contract
