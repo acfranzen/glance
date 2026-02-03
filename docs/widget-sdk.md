@@ -2214,6 +2214,114 @@ async function refreshHomebrew(slug) {
 }
 ```
 
+### Writing fetch.instructions (Critical for Agent Refresh)
+
+For `agent_refresh` widgets, `fetch.instructions` is **the most important field** — it tells the agent exactly how to collect and format data. Think of it as the equivalent of `server_code` for API widgets.
+
+#### What to Include
+
+A good `fetch.instructions` must specify:
+
+1. **Command(s) to run** — exact CLI commands or API calls
+2. **Data transformation** — how to parse/format the output  
+3. **Expected data shape** — the exact JSON structure the widget expects
+4. **Cache endpoint** — where to POST results
+
+#### Template
+
+```markdown
+## Data Collection
+
+Run the following command(s):
+```bash
+<exact command here>
+```
+
+## Data Transformation
+
+Parse the output and format as:
+```json
+{
+  "field1": <description>,
+  "field2": <description>,
+  "fetchedAt": "<ISO 8601 timestamp>"
+}
+```
+
+## Cache Update
+
+POST to: `/api/widgets/{slug}/cache`
+Header: `Origin: http://localhost:3333`
+Body: `{ "data": <formatted data above> }`
+```
+
+#### Example: GitHub PRs Widget
+
+```markdown
+## Data Collection
+
+Fetch PRs from both repos:
+```bash
+gh pr list --repo acfranzen/libra --json number,title,url,createdAt --limit 10
+gh pr list --repo acfranzen/glance --json number,title,url,createdAt --limit 10
+```
+
+## Data Transformation
+
+Group PRs by repo:
+```json
+{
+  "libra": [{ "number": 74, "title": "...", "url": "...", "createdAt": "..." }],
+  "glance": [{ "number": 30, "title": "...", "url": "...", "createdAt": "..." }],
+  "fetchedAt": "2026-02-03T17:00:00Z"
+}
+```
+
+## Cache Update
+
+POST to: `/api/widgets/open-prs/cache`
+Header: `Origin: http://localhost:3333`
+```
+
+#### Example: Claude Usage Widget
+
+```markdown
+## Data Collection
+
+1. Launch Claude CLI: `claude`
+2. Run command: `/status`
+3. Parse the usage output
+
+## Data Transformation
+
+Extract percentages and format as flat object:
+```json
+{
+  "session": "98%",
+  "sessionResets": "7pm",
+  "weekAll": "17%",
+  "weekSonnet": "2%",
+  "extra": "49%",
+  "extraSpent": "$248.26 / $500.00",
+  "fetchedAt": "2026-02-03T17:00:00Z"
+}
+```
+
+## Cache Update
+
+POST to: `/api/widgets/claude-code-usage/cache`
+Header: `Origin: http://localhost:3333`
+```
+
+#### Why This Matters
+
+Without clear instructions:
+- Agent may post wrong data shape → widget shows "No data"
+- Agent may miss required fields → widget errors
+- Different agents may interpret requirements differently
+
+The `fetch.instructions` field is your **contract** with any agent that will refresh this widget.
+
 ### Credential Injection Pattern
 
 Server code accesses credentials securely via `getCredential()`:
