@@ -267,7 +267,7 @@ export function DashboardGrid() {
 
   return (
     <>
-      <div id="dashboard-container" className="w-full">
+      <div id="dashboard-container" className={`w-full ${isEditing ? 'select-none' : ''}`}>
         <GridLayout
           className="layout"
           layout={responsiveLayout}
