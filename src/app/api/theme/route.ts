@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+
+// Prevent static generation - this route requires runtime database access
+export const dynamic = "force-dynamic";
+
+import { validateAuthOrInternal } from "@/lib/auth";
 import { getSetting, setSetting, logEvent } from "@/lib/db";
 
 export interface CustomTheme {
@@ -9,8 +14,13 @@ export interface CustomTheme {
   updatedAt: string;
 }
 
-// GET - Retrieve the current custom theme
-export async function GET() {
+// GET /api/theme - Retrieve the current custom theme
+export async function GET(request: NextRequest) {
+  const auth = validateAuthOrInternal(request);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+
   try {
     const themeJson = getSetting("custom_theme");
 
@@ -29,8 +39,13 @@ export async function GET() {
   }
 }
 
-// POST - Save a custom theme
+// POST /api/theme - Save a custom theme
 export async function POST(request: NextRequest) {
+  const auth = validateAuthOrInternal(request);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { name, lightCss, darkCss } = body as {
@@ -72,8 +87,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE - Remove the custom theme
-export async function DELETE() {
+// DELETE /api/theme - Remove the custom theme
+export async function DELETE(request: NextRequest) {
+  const auth = validateAuthOrInternal(request);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+
   try {
     setSetting("custom_theme", "");
     logEvent("theme_deleted", {});
