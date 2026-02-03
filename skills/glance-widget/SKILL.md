@@ -10,7 +10,7 @@ Create custom dashboard widgets that display data from any API.
 
 ## Quick Reference
 
-- **Full SDK docs:** See [references/widget-sdk.md](references/widget-sdk.md)
+- **Full SDK docs:** See `docs/widget-sdk.md` in the Glance repo
 - **Component list:** See [references/components.md](references/components.md)
 
 ## Widget Package Structure
