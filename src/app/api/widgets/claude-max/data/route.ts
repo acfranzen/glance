@@ -180,50 +180,32 @@ export async function GET(request: NextRequest) {
     } satisfies ClaudeMaxUsageData);
   }
 
-  // Check cache first (unless force refresh)
-  if (!forceRefresh) {
-    const cached = getCachedUsage();
-    if (cached) {
+  // Always read from cache - OpenClaw handles PTY capture via heartbeats
+  // Glance should NEVER try to capture directly (exec doesn't allocate TTY)
+  try {
+    if (fs.existsSync(CACHE_FILE)) {
+      const cached = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8')) as CachedData;
+      const cacheAge = Date.now() - new Date(cached.capturedAt).getTime();
+      const isStale = cacheAge > CACHE_MAX_AGE_MS;
+      
       return NextResponse.json({
         ...cached,
         fromCache: true,
+        staleCache: isStale,
         lastUpdated: new Date().toISOString(),
       });
     }
+  } catch (e) {
+    console.error('Cache read error:', e);
   }
 
-  // Perform fresh PTY capture
-  try {
-    const freshData = await captureClaudeUsage();
-    return NextResponse.json({
-      ...freshData,
-      lastUpdated: new Date().toISOString(),
-    });
-  } catch (err) {
-    console.error('PTY capture failed:', err);
-    
-    // Try to return stale cache as fallback
-    try {
-      if (fs.existsSync(CACHE_FILE)) {
-        const cached = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8')) as CachedData;
-        return NextResponse.json({
-          ...cached,
-          staleCache: true,
-          error: `Failed to refresh: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          lastUpdated: new Date().toISOString(),
-        });
-      }
-    } catch (e) {
-      // ignore
-    }
-
-    return NextResponse.json({
-      session: { percentUsed: 0, resetsAt: 'No data' },
-      weekAll: { percentUsed: 0, resetsAt: 'No data' },
-      weekOpus: { percentUsed: 0, resetsAt: 'No data' },
-      capturedAt: new Date().toISOString(),
-      lastUpdated: new Date().toISOString(),
-      error: `No usage data available: ${err instanceof Error ? err.message : 'Unknown error'}`,
-    } satisfies ClaudeMaxUsageData);
-  }
+  // No cache available - tell user to ask OpenClaw to capture
+  return NextResponse.json({
+    session: { percentUsed: 0, resetsAt: 'No data' },
+    weekAll: { percentUsed: 0, resetsAt: 'No data' },
+    weekOpus: { percentUsed: 0, resetsAt: 'No data' },
+    capturedAt: new Date().toISOString(),
+    lastUpdated: new Date().toISOString(),
+    error: 'No usage data. Ask OpenClaw to capture Claude usage.',
+  } satisfies ClaudeMaxUsageData);
 }

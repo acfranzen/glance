@@ -41,7 +41,7 @@ export function ClaudeMaxUsageWidget({ widget }: ClaudeMaxUsageWidgetProps) {
 
   const fetchData = useCallback(async (forceRefresh = false) => {
     if (forceRefresh) setRefreshing(true);
-    else setLoading(true);
+    else if (!data) setLoading(true); // Only show loading on initial fetch
 
     try {
       const url = forceRefresh 
@@ -51,7 +51,11 @@ export function ClaudeMaxUsageWidget({ widget }: ClaudeMaxUsageWidgetProps) {
       const response = await fetch(url);
       if (response.ok) {
         const usageData = await response.json();
-        setData(usageData);
+        // Only update state if data actually changed (check capturedAt)
+        setData(prev => {
+          if (prev?.capturedAt === usageData.capturedAt) return prev;
+          return usageData;
+        });
       }
     } catch (error) {
       console.error('Failed to fetch Claude Max usage:', error);
@@ -59,12 +63,13 @@ export function ClaudeMaxUsageWidget({ widget }: ClaudeMaxUsageWidgetProps) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [data]);
 
   useEffect(() => {
     fetchData();
-    // Refresh every 5 minutes
-    const interval = setInterval(() => fetchData(false), 5 * 60 * 1000);
+    // Poll every 30 seconds - it's just a cache read, cheap operation
+    // Widget will only re-render if data actually changed
+    const interval = setInterval(() => fetchData(false), 30 * 1000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
