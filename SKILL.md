@@ -212,40 +212,42 @@ const { data, loading, error } = useData();
 
 The Claude Max widget displays your Claude Max subscription usage (session, weekly, extra usage).
 
-**⚠️ Requires OpenClaw PTY:** The Claude CLI needs an interactive terminal to display usage data. Glance cannot capture this directly — OpenClaw must do the PTY capture and push data to Glance.
+**⚠️ Requires OpenClaw PTY:** The Claude CLI needs an interactive terminal to display usage data. Glance cannot capture this directly — OpenClaw must do the PTY capture.
 
-**How it works:**
+**How the refresh flow works:**
 
-1. OpenClaw spawns Claude CLI with `pty: true`
-2. Sends `/status` command, navigates to Usage tab
-3. Parses the output and writes to `/tmp/claude-usage-cache.json`
-4. Glance reads from cache via `GET /api/widgets/claude-max/data`
+1. User clicks refresh button on Claude Max widget
+2. Glance POSTs to `/api/widgets/claude-max/refresh` (creates request file)
+3. OpenClaw cron job detects the request file
+4. OpenClaw spawns subagent to do PTY capture
+5. Subagent writes to `/tmp/claude-usage-cache.json`
+6. Glance polls (every 30s) and sees fresh data
 
-**OpenClaw PTY capture example:**
+**API Endpoints:**
 
-```javascript
-// In OpenClaw - use exec with pty: true
-const session = await exec({
-  command: '/opt/homebrew/bin/claude --dangerously-skip-permissions',
-  pty: true,
-  yieldMs: 5000
-});
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/widgets/claude-max/data` | GET | Read cached usage data |
+| `/api/widgets/claude-max/refresh` | POST | Request OpenClaw to capture fresh data |
+| `/api/widgets/claude-max/refresh` | GET | Check if refresh is pending |
+| `/api/widgets/claude-max/refresh` | DELETE | Clear refresh request (called by OpenClaw) |
 
-// Send /status and navigate to Usage tab
-await process.write(session.id, '/status\n');
-await sleep(1000);
-await process.sendKeys(session.id, ['Right', 'Right']); // Navigate to Usage tab
-await sleep(1000);
+**OpenClaw cron job setup:**
 
-// Capture output, parse, and write directly to cache file
-const log = await process.log(session.id);
-const usage = parseClaudeUsage(log); // Strip ANSI, extract percentages
+Add to your OpenClaw config or HEARTBEAT.md:
+```
+Check /tmp/claude-usage-refresh-requested — if exists, spawn subagent to capture Claude usage
+```
 
-// Write to cache file (Glance reads from here)
-await fs.writeFile('/tmp/claude-usage-cache.json', JSON.stringify({
-  ...usage,
-  capturedAt: new Date().toISOString()
-}));
+**OpenClaw PTY capture task (for subagent):**
+
+```
+Capture Claude Max usage:
+1. Spawn claude CLI with pty: true
+2. Send /status, navigate to Usage tab (Right, Right)
+3. Parse output for percentages and reset times
+4. Write to /tmp/claude-usage-cache.json
+5. DELETE /api/widgets/claude-max/refresh to clear request
 ```
 
 **Cache file format** (`/tmp/claude-usage-cache.json`):

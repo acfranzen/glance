@@ -39,16 +39,11 @@ export function ClaudeMaxUsageWidget({ widget }: ClaudeMaxUsageWidgetProps) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchData = useCallback(async (forceRefresh = false) => {
-    if (forceRefresh) setRefreshing(true);
-    else if (!data) setLoading(true); // Only show loading on initial fetch
+  const fetchData = useCallback(async () => {
+    if (!data) setLoading(true); // Only show loading on initial fetch
 
     try {
-      const url = forceRefresh 
-        ? '/api/widgets/claude-max/data?refresh=true'
-        : '/api/widgets/claude-max/data';
-      
-      const response = await fetch(url);
+      const response = await fetch('/api/widgets/claude-max/data');
       if (response.ok) {
         const usageData = await response.json();
         // Only update state if data actually changed (check capturedAt)
@@ -64,6 +59,24 @@ export function ClaudeMaxUsageWidget({ widget }: ClaudeMaxUsageWidgetProps) {
       setRefreshing(false);
     }
   }, [data]);
+
+  // Request OpenClaw to capture fresh data via webhook
+  const requestRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const response = await fetch('/api/widgets/claude-max/refresh', {
+        method: 'POST',
+      });
+      if (response.ok) {
+        // OpenClaw will capture and update cache, we'll pick it up on next poll
+        console.log('Refresh requested, OpenClaw will capture fresh data');
+      }
+    } catch (error) {
+      console.error('Failed to request refresh:', error);
+    }
+    // Keep refreshing indicator for a few seconds to show request was sent
+    setTimeout(() => setRefreshing(false), 3000);
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -149,10 +162,10 @@ export function ClaudeMaxUsageWidget({ widget }: ClaudeMaxUsageWidgetProps) {
           )}
         </div>
         <button
-          onClick={() => fetchData(true)}
+          onClick={requestRefresh}
           disabled={refreshing}
           className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          title="Refresh usage data"
+          title="Request fresh data from OpenClaw"
         >
           <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
         </button>
