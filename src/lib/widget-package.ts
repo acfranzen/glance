@@ -11,10 +11,11 @@ import {
   CredentialRequirement,
   SetupConfig,
   FetchConfig,
+  CacheConfig,
 } from "./db";
 
 // Re-export types for convenience
-export type { CredentialRequirement, SetupConfig, FetchConfig };
+export type { CredentialRequirement, SetupConfig, FetchConfig, CacheConfig };
 
 // Magic prefix for widget packages (Glance Widget v1)
 export const MAGIC_PREFIX = "!GW1!";
@@ -33,6 +34,7 @@ export interface WidgetPackage {
     slug: string;
     description?: string;
     author?: string;
+    info?: string;                    // AI agent context for the overall widget
     created_at: string;
     exported_at: string;
   };
@@ -45,12 +47,14 @@ export interface WidgetPackage {
     default_size: { w: number; h: number };
     min_size: { w: number; h: number };
     refresh_interval: number;
+    info?: string;                    // AI agent context for display/rendering
   };
 
   // Requirements (top-level)
   credentials: CredentialRequirement[];
   setup?: SetupConfig;
   fetch: FetchConfig;
+  cache?: CacheConfig;
 }
 
 /**
@@ -91,6 +95,7 @@ export function encodeWidgetPackage(
     credentials: widget.credentials,
     setup: widget.setup || undefined,
     fetch: widget.fetch,
+    cache: widget.cache || undefined,
   };
 
   const json = JSON.stringify(pkg);
@@ -211,7 +216,6 @@ export function validateWidgetPackage(pkg: WidgetPackage): ValidationResult {
   } else {
     const validFetchTypes = [
       "server_code",
-      "cache_file",
       "webhook",
       "agent_refresh",
     ];
@@ -220,17 +224,54 @@ export function validateWidgetPackage(pkg: WidgetPackage): ValidationResult {
     }
 
     // Type-specific validation
-    if (pkg.fetch.type === "cache_file" && !pkg.fetch.cache_path) {
-      errors.push("cache_file fetch type requires cache_path");
-    }
     if (pkg.fetch.type === "webhook" && !pkg.fetch.webhook_path) {
       errors.push("webhook fetch type requires webhook_path");
+    }
+    if (pkg.fetch.type === "agent_refresh") {
+      if (!pkg.fetch.instructions) {
+        warnings.push("agent_refresh should have instructions for the agent");
+      }
+      if (!pkg.fetch.schedule) {
+        warnings.push("agent_refresh without schedule requires manual agent triggering");
+      } else {
+        // Validate cron expression format (basic check for 5 space-separated fields)
+        const cronParts = pkg.fetch.schedule.trim().split(/\s+/);
+        if (cronParts.length !== 5) {
+          errors.push(`Invalid cron schedule: expected 5 fields (minute hour day month weekday), got ${cronParts.length}`);
+        } else {
+          // Basic validation of cron field values
+          const cronRegex = /^(\*|[0-9,\-\/\*]+)$/;
+          const invalidFields = cronParts.filter(part => !cronRegex.test(part));
+          if (invalidFields.length > 0) {
+            errors.push(`Invalid cron schedule: invalid field values "${invalidFields.join(", ")}"`);
+          }
+        }
+      }
     }
   }
 
   // Validate server code if enabled
   if (pkg.widget?.server_code_enabled && !pkg.widget?.server_code) {
     warnings.push("server_code_enabled is true but no server_code provided");
+  }
+
+  // Validate cache config if provided
+  if (pkg.cache) {
+    if (typeof pkg.cache.ttl_seconds !== "number" || pkg.cache.ttl_seconds < 0) {
+      errors.push("cache.ttl_seconds must be a non-negative number");
+    }
+    if (pkg.cache.max_staleness_seconds !== undefined && 
+        (typeof pkg.cache.max_staleness_seconds !== "number" || pkg.cache.max_staleness_seconds < 0)) {
+      errors.push("cache.max_staleness_seconds must be a non-negative number");
+    }
+    if (pkg.cache.storage !== undefined && 
+        !["memory", "sqlite"].includes(pkg.cache.storage)) {
+      errors.push("cache.storage must be 'memory' or 'sqlite'");
+    }
+    if (pkg.cache.on_error !== undefined && 
+        !["use_stale", "show_error"].includes(pkg.cache.on_error)) {
+      errors.push("cache.on_error must be 'use_stale' or 'show_error'");
+    }
   }
 
   return {
@@ -269,6 +310,7 @@ export function packageToWidget(pkg: WidgetPackage): Omit<
     credentials: pkg.credentials || [],
     setup: pkg.setup || null,
     fetch: pkg.fetch,
+    cache: pkg.cache || null,
     author: pkg.meta.author || null,
   };
 }

@@ -7,10 +7,7 @@ import {
   getCustomWidget,
   getCustomWidgetBySlug,
   updateCustomWidget,
-  deleteCustomWidget,
-  CredentialRequirement,
-  SetupConfig,
-  FetchConfig,
+  deleteCustomWidget
 } from '@/lib/db';
 import { validateServerCode } from '@/lib/widget-sdk/server-executor';
 
@@ -96,20 +93,11 @@ export async function PATCH(
     const enabled = body.enabled !== undefined ? body.enabled : existing.enabled;
     const serverCode = body.server_code !== undefined ? body.server_code : existing.server_code;
     const serverCodeEnabled = body.server_code_enabled !== undefined ? body.server_code_enabled : existing.server_code_enabled;
-    
-    // Widget package fields
-    const credentials: CredentialRequirement[] = body.credentials !== undefined
-      ? (Array.isArray(body.credentials) ? body.credentials : [])
-      : existing.credentials;
-    const setup: SetupConfig | null = body.setup !== undefined
-      ? (body.setup && typeof body.setup === 'object' ? body.setup : null)
-      : existing.setup;
-    const fetch: FetchConfig = body.fetch !== undefined
-      ? (body.fetch && typeof body.fetch === 'object' ? body.fetch : { type: 'server_code' })
-      : existing.fetch;
-    const author: string | null = body.author !== undefined
-      ? (typeof body.author === 'string' ? body.author : null)
-      : existing.author;
+    const credentials = body.credentials !== undefined ? body.credentials : existing.credentials;
+    const setup = body.setup !== undefined ? body.setup : existing.setup;
+    const fetch = body.fetch !== undefined ? body.fetch : existing.fetch;
+    const cache = body.cache !== undefined ? body.cache : existing.cache;
+    const author = body.author !== undefined ? body.author : existing.author;
 
     // Validate server code if provided and enabled
     if (serverCode && serverCodeEnabled) {
@@ -139,6 +127,7 @@ export async function PATCH(
       credentials,
       setup,
       fetch,
+      cache,
       author
     );
 

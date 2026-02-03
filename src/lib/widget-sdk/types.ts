@@ -23,6 +23,18 @@ export interface UseWidgetStateResult<T> {
   setState: (value: T | ((prev: T) => T)) => void;
 }
 
+// Fetch configuration for widget data sources
+export interface FetchConfig {
+  type: "server_code" | "webhook" | "agent_refresh";
+  info?: string;
+  webhook_path?: string;
+  webhook_setup_instructions?: string;
+  instructions?: string;
+  expected_freshness_seconds?: number;
+  max_staleness_seconds?: number;
+  schedule?: string;
+}
+
 // Custom Widget Definition from API
 export interface CustomWidgetDefinition {
   id: string;
@@ -38,6 +50,8 @@ export interface CustomWidgetDefinition {
   enabled: boolean;
   server_code: string | null;
   server_code_enabled: boolean;
+  // Widget package fields
+  fetch?: FetchConfig;
 }
 
 // Widget context for runtime execution

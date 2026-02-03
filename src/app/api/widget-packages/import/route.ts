@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
-import fs from "fs";
 import { exec } from "child_process";
 import { promisify } from "util";
 
@@ -23,7 +22,7 @@ import {
   WidgetPackage,
 } from "@/lib/widget-package";
 import { validateServerCode } from "@/lib/widget-sdk/server-executor";
-import { hasCredentialForProvider } from "@/lib/credentials";
+import { hasCredential, type Provider } from "@/lib/credentials";
 
 const execAsync = promisify(exec);
 
@@ -45,7 +44,7 @@ interface SetupStatus {
   description?: string;
   agent_skill?: string;
   verification?: {
-    type: "file_exists" | "command_succeeds" | "endpoint_responds";
+    type: "command_succeeds" | "endpoint_responds" | "cache_populated";
     target: string;
   };
   estimated_time?: string;
@@ -54,8 +53,14 @@ interface SetupStatus {
 interface FetchStatus {
   type: string;
   status: "ready" | "not_ready";
-  cache_path?: string;
   webhook_path?: string;
+  instructions?: string;
+}
+
+interface CronScheduleInfo {
+  expression: string;
+  instructions: string;
+  slug: string;
 }
 
 interface ImportResponse {
@@ -84,6 +89,8 @@ interface ImportResponse {
     errors: string[];
     warnings: string[];
   };
+  // Present when widget has agent_refresh with schedule - OpenClaw should register cron
+  cronSchedule?: CronScheduleInfo;
 }
 
 /**
@@ -112,7 +119,7 @@ async function checkCredentials(
 
   for (const cred of credentials) {
     if (cred.type === "api_key" || cred.type === "oauth") {
-      const configured = hasCredentialForProvider(cred.id);
+      const configured = hasCredential(cred.id as Provider);
       statuses.push({
         id: cred.id,
         type: cred.type,
@@ -161,9 +168,7 @@ async function checkSetupStatus(
   if (pkg.setup.verification) {
     const { type, target } = pkg.setup.verification;
     
-    if (type === "file_exists") {
-      isConfigured = fs.existsSync(target);
-    } else if (type === "command_succeeds") {
+    if (type === "command_succeeds") {
       try {
         await execAsync(target, { timeout: 5000 });
         isConfigured = true;
@@ -171,7 +176,8 @@ async function checkSetupStatus(
         isConfigured = false;
       }
     }
-    // endpoint_responds would need more complex checking
+    // cache_populated checks if widget has cached data in DB
+    // endpoint_responds would need HTTP checking
   }
 
   return {
@@ -196,16 +202,12 @@ function checkFetchStatus(pkg: WidgetPackage, setupStatus: SetupStatus): FetchSt
       // Ready if credentials are configured
       ready = true; // Will be determined by credentials check
       break;
-    case "cache_file":
-      // Ready if the cache file exists
-      ready = fetch.cache_path ? fs.existsSync(fetch.cache_path) : false;
-      break;
     case "webhook":
       // Ready if setup is configured
       ready = setupStatus.status === "configured" || setupStatus.status === "not_required";
       break;
     case "agent_refresh":
-      // Ready if setup is configured
+      // Ready if setup is configured (agent will populate cache via API)
       ready = setupStatus.status === "configured" || setupStatus.status === "not_required";
       break;
   }
@@ -213,8 +215,8 @@ function checkFetchStatus(pkg: WidgetPackage, setupStatus: SetupStatus): FetchSt
   return {
     type: fetch.type,
     status: ready ? "ready" : "not_ready",
-    cache_path: fetch.cache_path,
     webhook_path: fetch.webhook_path,
+    instructions: fetch.instructions,
   };
 }
 
@@ -365,6 +367,17 @@ export async function POST(request: NextRequest) {
     const widgetData = packageToWidget(pkg);
     const widgetId = `cw_${nanoid(12)}`;
 
+    // Use cache config from package, or create default based on fetch type
+    const cacheConfig = widgetData.cache ?? (
+      widgetData.fetch.type === 'agent_refresh' 
+        ? { 
+            ttl_seconds: widgetData.fetch.expected_freshness_seconds ?? 300,
+            max_staleness_seconds: widgetData.fetch.max_staleness_seconds ?? 900,
+            on_error: 'use_stale' as const,
+          }
+        : null
+    );
+
     createCustomWidget(
       widgetId,
       widgetData.name,
@@ -382,6 +395,7 @@ export async function POST(request: NextRequest) {
       widgetData.credentials,
       widgetData.setup,
       widgetData.fetch,
+      cacheConfig,
       widgetData.author,
     );
 
@@ -393,6 +407,16 @@ export async function POST(request: NextRequest) {
     response.message = `Widget "${widgetData.name}" imported successfully!`;
     if (uniqueSlug !== pkg.meta.slug) {
       response.message += ` (slug changed to "${uniqueSlug}" to avoid conflict)`;
+    }
+
+    // Include cron schedule info for OpenClaw to register
+    if (widgetData.fetch.type === "agent_refresh" && widgetData.fetch.schedule) {
+      response.cronSchedule = {
+        expression: widgetData.fetch.schedule,
+        instructions: widgetData.fetch.instructions || `Refresh widget data for ${widgetData.name}. POST to /api/custom-widgets/${uniqueSlug}/cache with { data: {...} }`,
+        slug: uniqueSlug,
+      };
+      response.message += " Cron schedule returned for OpenClaw registration.";
     }
 
     // Optionally add to dashboard

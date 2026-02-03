@@ -109,20 +109,6 @@ function getDb(): Database.Database {
     }
   }
 
-  // Migration: Add widget package columns (credentials, setup, fetch) to custom_widgets
-  {
-    const tableInfo = _db
-      .prepare("PRAGMA table_info(custom_widgets)")
-      .all() as Array<{ name: string }>;
-    const hasCredentials = tableInfo.some((col) => col.name === "credentials");
-    if (!hasCredentials) {
-      _db.exec(`ALTER TABLE custom_widgets ADD COLUMN credentials TEXT DEFAULT '[]'`);
-      _db.exec(`ALTER TABLE custom_widgets ADD COLUMN setup TEXT`);
-      _db.exec(`ALTER TABLE custom_widgets ADD COLUMN fetch TEXT DEFAULT '{"type":"server_code"}'`);
-      _db.exec(`ALTER TABLE custom_widgets ADD COLUMN author TEXT`);
-    }
-  }
-
   // Create custom_widgets table and related indexes (after migration)
   _db.exec(`
     -- Custom widget definitions (JSX code stored here)
@@ -160,19 +146,6 @@ function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_custom_widgets_slug ON custom_widgets(slug);
     CREATE INDEX IF NOT EXISTS idx_widgets_custom_widget_id ON widgets(custom_widget_id);
     CREATE INDEX IF NOT EXISTS idx_data_providers_slug ON data_providers(slug);
-
-    -- Widget setups tracking (for tracking local setup completion)
-    CREATE TABLE IF NOT EXISTS widget_setups (
-      id TEXT PRIMARY KEY,
-      widget_slug TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'not_configured',
-      verified_at TEXT,
-      notes TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_widget_setups_slug ON widget_setups(widget_slug);
   `);
 
   return _db;
@@ -235,6 +208,7 @@ export interface CustomWidgetRow {
   credentials: string;
   setup: string | null;
   fetch: string;
+  cache: string | null;
   author: string | null;
 }
 
@@ -333,12 +307,12 @@ function createStatements(db: Database.Database) {
       "SELECT * FROM custom_widgets WHERE slug = ?",
     ),
     insertCustomWidget: db.prepare(`
-      INSERT INTO custom_widgets (id, name, slug, description, source_code, compiled_code, default_size, min_size, data_providers, refresh_interval, enabled, server_code, server_code_enabled, credentials, setup, fetch, author)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO custom_widgets (id, name, slug, description, source_code, compiled_code, default_size, min_size, data_providers, refresh_interval, enabled, server_code, server_code_enabled, credentials, setup, fetch, cache, author)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `),
     updateCustomWidget: db.prepare(`
       UPDATE custom_widgets
-      SET name = ?, description = ?, source_code = ?, compiled_code = ?, default_size = ?, min_size = ?, data_providers = ?, refresh_interval = ?, enabled = ?, server_code = ?, server_code_enabled = ?, credentials = ?, setup = ?, fetch = ?, author = ?, updated_at = datetime('now')
+      SET name = ?, description = ?, source_code = ?, compiled_code = ?, default_size = ?, min_size = ?, data_providers = ?, refresh_interval = ?, enabled = ?, server_code = ?, server_code_enabled = ?, credentials = ?, setup = ?, fetch = ?, cache = ?, author = ?, updated_at = datetime('now')
       WHERE id = ?
     `),
     deleteCustomWidget: db.prepare("DELETE FROM custom_widgets WHERE id = ?"),
@@ -533,11 +507,20 @@ export function updateLayout(
 }
 
 // Widget Package Types
+export interface CacheConfig {
+  ttl_seconds: number;              // How long data is "fresh"
+  max_staleness_seconds?: number;   // How long data is "usable but stale"
+  storage?: "memory" | "sqlite";    // Default: sqlite
+  on_error?: "use_stale" | "show_error";  // Behavior when fetch fails
+  info?: string;                    // AI agent context
+}
+
 export interface CredentialRequirement {
   id: string;
   type: "api_key" | "local_software" | "oauth";
   name: string;
   description: string;
+  info?: string;                    // AI agent context for this credential
   // For api_key
   obtain_url?: string;
   obtain_instructions?: string;
@@ -558,30 +541,32 @@ export interface SetupConfig {
   description: string;
   agent_skill: string;
   verification: {
-    type: "file_exists" | "command_succeeds" | "endpoint_responds";
-    target: string;
+    type: "command_succeeds" | "endpoint_responds" | "cache_populated";
+    target: string;  // Command, URL, or widget slug (for cache_populated)
   };
   idempotent: boolean;
   estimated_time?: string;
+  info?: string;                    // AI agent context for setup
 }
 
 export interface FetchConfig {
-  type: "server_code" | "cache_file" | "webhook" | "agent_refresh";
-  cache_path?: string;
+  type: "server_code" | "webhook" | "agent_refresh";
+  info?: string;                       // AI agent context for data fetching
+  // For webhook
   webhook_path?: string;
   webhook_setup_instructions?: string;
-  refresh_command?: string;
-  refresh_interval?: number;
+  // For agent_refresh
+  instructions?: string;              // Markdown instructions for the agent
+  expected_freshness_seconds?: number; // Agent SHOULD refresh within this window
+  max_staleness_seconds?: number;      // Widget SHOULD show warning after this
+  schedule?: string;                   // Cron expression (e.g., "*/5 * * * *" for every 5 min)
 }
 
-export interface WidgetSetup {
-  id: string;
-  widget_slug: string;
-  status: "not_configured" | "configured" | "failed";
-  verified_at: string | null;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
+export interface ErrorConfig {
+  retry?: { max_attempts: number; backoff_ms: number };
+  fallback?: "use_stale" | "show_error" | "show_placeholder";
+  placeholder_data?: unknown;
+  timeout_ms?: number;
 }
 
 // Custom Widget functions
@@ -605,7 +590,19 @@ export interface CustomWidget {
   credentials: CredentialRequirement[];
   setup: SetupConfig | null;
   fetch: FetchConfig;
+  cache: CacheConfig | null;
   author: string | null;
+  error?: ErrorConfig;
+}
+
+export interface WidgetSetup {
+  id: string;
+  widget_slug: string;
+  status: "not_configured" | "configured" | "failed";
+  verified_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 function rowToCustomWidget(row: CustomWidgetRow): CustomWidget {
@@ -629,6 +626,7 @@ function rowToCustomWidget(row: CustomWidgetRow): CustomWidget {
     credentials: row.credentials ? JSON.parse(row.credentials) : [],
     setup: row.setup ? JSON.parse(row.setup) : null,
     fetch: row.fetch ? JSON.parse(row.fetch) : { type: "server_code" },
+    cache: row.cache ? JSON.parse(row.cache) : null,
     author: row.author,
   };
 }
@@ -684,6 +682,7 @@ export function createCustomWidget(
   credentials: CredentialRequirement[] = [],
   setup: SetupConfig | null = null,
   fetch: FetchConfig = { type: "server_code" },
+  cache: CacheConfig | null = null,
   author: string | null = null,
 ): void {
   getStmts().insertCustomWidget.run(
@@ -703,6 +702,7 @@ export function createCustomWidget(
     JSON.stringify(credentials),
     setup ? JSON.stringify(setup) : null,
     JSON.stringify(fetch),
+    cache ? JSON.stringify(cache) : null,
     author,
   );
   logEvent("custom_widget_created", { id, name, slug });
@@ -724,6 +724,7 @@ export function updateCustomWidget(
   credentials: CredentialRequirement[] = [],
   setup: SetupConfig | null = null,
   fetch: FetchConfig = { type: "server_code" },
+  cache: CacheConfig | null = null,
   author: string | null = null,
 ): void {
   getStmts().updateCustomWidget.run(
@@ -741,6 +742,7 @@ export function updateCustomWidget(
     JSON.stringify(credentials),
     setup ? JSON.stringify(setup) : null,
     JSON.stringify(fetch),
+    cache ? JSON.stringify(cache) : null,
     author,
     id,
   );
@@ -880,6 +882,136 @@ export function upsertWidgetSetup(
 export function deleteWidgetSetup(id: string): void {
   getStmts().deleteWidgetSetup.run(id);
   logEvent("widget_setup_deleted", { id });
+}
+
+// Get widgets by custom widget ID
+export function getWidgetsByCustomWidgetId(customWidgetId: string): WidgetRow[] {
+  const db = getDb();
+  const stmt = db.prepare("SELECT * FROM widgets WHERE custom_widget_id = ?");
+  return stmt.all(customWidgetId) as WidgetRow[];
+}
+
+// Widget Data Cache Types and Functions
+export interface WidgetDataCache {
+  widget_instance_id: string;
+  custom_widget_id: string;
+  data: unknown;
+  fetched_at: string;
+  expires_at: string;
+  params_hash: string | null;
+}
+
+interface WidgetDataCacheRow {
+  widget_instance_id: string;
+  custom_widget_id: string;
+  data: string;
+  fetched_at: string;
+  expires_at: string;
+  params_hash: string | null;
+}
+
+// Lazy-initialized cache statements
+let _cacheStmts: {
+  getCachedWidgetData: Database.Statement;
+  setCachedWidgetData: Database.Statement;
+  deleteCachedWidgetData: Database.Statement;
+  deleteExpiredCache: Database.Statement;
+} | null = null;
+
+function getCacheStmts() {
+  if (_cacheStmts) return _cacheStmts;
+  
+  const db = getDb();
+  
+  // Create cache table if not exists
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS widget_data_cache (
+      widget_instance_id TEXT PRIMARY KEY,
+      custom_widget_id TEXT NOT NULL,
+      data TEXT NOT NULL,
+      fetched_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      params_hash TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_widget_data_cache_expires ON widget_data_cache(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_widget_data_cache_custom_widget ON widget_data_cache(custom_widget_id);
+  `);
+  
+  _cacheStmts = {
+    getCachedWidgetData: db.prepare(
+      "SELECT * FROM widget_data_cache WHERE widget_instance_id = ?"
+    ),
+    setCachedWidgetData: db.prepare(`
+      INSERT INTO widget_data_cache (widget_instance_id, custom_widget_id, data, fetched_at, expires_at, params_hash)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(widget_instance_id) DO UPDATE SET
+        custom_widget_id = excluded.custom_widget_id,
+        data = excluded.data,
+        fetched_at = excluded.fetched_at,
+        expires_at = excluded.expires_at,
+        params_hash = excluded.params_hash
+    `),
+    deleteCachedWidgetData: db.prepare(
+      "DELETE FROM widget_data_cache WHERE widget_instance_id = ?"
+    ),
+    deleteExpiredCache: db.prepare(
+      "DELETE FROM widget_data_cache WHERE expires_at < datetime('now')"
+    ),
+  };
+  
+  return _cacheStmts;
+}
+
+export function getCachedWidgetData(instanceId: string): WidgetDataCache | undefined {
+  const row = getCacheStmts().getCachedWidgetData.get(instanceId) as WidgetDataCacheRow | undefined;
+  if (!row) return undefined;
+  
+  return {
+    widget_instance_id: row.widget_instance_id,
+    custom_widget_id: row.custom_widget_id,
+    data: JSON.parse(row.data),
+    fetched_at: row.fetched_at,
+    expires_at: row.expires_at,
+    params_hash: row.params_hash,
+  };
+}
+
+export function setCachedWidgetData(
+  instanceId: string,
+  customWidgetId: string,
+  data: unknown,
+  ttlSeconds: number,
+  paramsHash?: string
+): void {
+  const now = new Date();
+  const fetchedAt = now.toISOString();
+  const expiresAt = new Date(now.getTime() + ttlSeconds * 1000).toISOString();
+  
+  getCacheStmts().setCachedWidgetData.run(
+    instanceId,
+    customWidgetId,
+    JSON.stringify(data),
+    fetchedAt,
+    expiresAt,
+    paramsHash || null
+  );
+  
+  logEvent("widget_cache_set", { instanceId, customWidgetId, ttlSeconds });
+}
+
+export function invalidateWidgetCache(instanceId: string): void {
+  getCacheStmts().deleteCachedWidgetData.run(instanceId);
+  logEvent("widget_cache_invalidated", { instanceId });
+}
+
+export function deleteExpiredCache(): number {
+  const result = getCacheStmts().deleteExpiredCache.run();
+  const deleted = result.changes;
+  if (deleted > 0) {
+    logEvent("widget_cache_cleanup", { deleted });
+  }
+  return deleted;
 }
 
 // Export getter for direct db access (use sparingly)
