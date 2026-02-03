@@ -133,14 +133,14 @@ export async function POST(
   }
 
   // Validate data against widget's schema if defined
-  if (widget.dataSchema) {
-    const validation = validateDataSchema(body.data, widget.dataSchema);
+  if (widget.data_schema) {
+    const validation = validateDataSchema(body.data, widget.data_schema);
     if (!validation.valid) {
       return NextResponse.json({ 
         error: "Data validation failed against widget schema",
         validation_errors: validation.errors,
         message: formatValidationErrors(validation.errors),
-        expected_schema: widget.dataSchema,
+        expected_schema: widget.data_schema,
       }, { status: 400 });
     }
   }

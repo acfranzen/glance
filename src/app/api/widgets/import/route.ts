@@ -430,7 +430,7 @@ export async function POST(request: NextRequest) {
       widgetData.fetch,
       cacheConfig,
       widgetData.author,
-      widgetData.dataSchema,
+      widgetData.data_schema,
     );
 
     response.widget = {

@@ -71,7 +71,7 @@ interface WidgetInfo {
   server_code_enabled: boolean;
   source_code?: string;
   server_code?: string;
-  dataSchema?: object;
+  data_schema?: object;
 }
 
 interface CredentialStatus {
@@ -213,8 +213,8 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
       ? info.source_code 
       : codeView === 'server' 
         ? info.server_code 
-        : info.dataSchema 
-          ? JSON.stringify(info.dataSchema, null, 2) 
+        : info.data_schema 
+          ? JSON.stringify(info.data_schema, null, 2) 
           : undefined;
     const lines = countLines(code);
     const title = codeView === 'source' 
@@ -537,13 +537,13 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
                   variant="outline" 
                   size="sm" 
                   onClick={() => setCodeView('schema')}
-                  disabled={!info.dataSchema}
+                  disabled={!info.data_schema}
                   className="h-auto py-3 flex-col"
                 >
                   <Database className="h-5 w-5 mb-1" />
                   <span className="text-xs">Data Schema</span>
                   <span className="text-[10px] text-muted-foreground">
-                    {info.dataSchema ? 'JSON Schema' : 'None'}
+                    {info.data_schema ? 'JSON Schema' : 'None'}
                   </span>
                 </Button>
               </div>

@@ -659,7 +659,7 @@ export interface CustomWidget {
   author: string | null;
   error?: ErrorConfig;
   // Data validation schema (JSON Schema format)
-  dataSchema: DataSchema | null;
+  data_schema: DataSchema | null;
 }
 
 export interface WidgetSetup {
@@ -695,7 +695,7 @@ function rowToCustomWidget(row: CustomWidgetRow): CustomWidget {
     fetch: row.fetch ? JSON.parse(row.fetch) : { type: "server_code" },
     cache: row.cache ? JSON.parse(row.cache) : null,
     author: row.author,
-    dataSchema: row.data_schema ? JSON.parse(row.data_schema) : null,
+    data_schema: row.data_schema ? JSON.parse(row.data_schema) : null,
   };
 }
 
@@ -752,7 +752,7 @@ export function createCustomWidget(
   fetch: FetchConfig = { type: "server_code" },
   cache: CacheConfig | null = null,
   author: string | null = null,
-  dataSchema: DataSchema | null = null,
+  data_schema: DataSchema | null = null,
 ): void {
   getStmts().insertCustomWidget.run(
     id,
@@ -773,7 +773,7 @@ export function createCustomWidget(
     JSON.stringify(fetch),
     cache ? JSON.stringify(cache) : null,
     author,
-    dataSchema ? JSON.stringify(dataSchema) : null,
+    data_schema ? JSON.stringify(data_schema) : null,
   );
   logEvent("custom_widget_created", { id, name, slug });
 }
@@ -796,7 +796,7 @@ export function updateCustomWidget(
   fetch: FetchConfig = { type: "server_code" },
   cache: CacheConfig | null = null,
   author: string | null = null,
-  dataSchema: DataSchema | null = null,
+  data_schema: DataSchema | null = null,
 ): void {
   getStmts().updateCustomWidget.run(
     name,
@@ -815,7 +815,7 @@ export function updateCustomWidget(
     JSON.stringify(fetch),
     cache ? JSON.stringify(cache) : null,
     author,
-    dataSchema ? JSON.stringify(dataSchema) : null,
+    data_schema ? JSON.stringify(data_schema) : null,
     id,
   );
   logEvent("custom_widget_updated", { id, name });

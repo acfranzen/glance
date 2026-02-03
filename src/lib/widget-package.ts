@@ -100,7 +100,7 @@ export function encodeWidgetPackage(
     setup: widget.setup || undefined,
     fetch: widget.fetch,
     cache: widget.cache || undefined,
-    data_schema: widget.dataSchema || undefined,
+    data_schema: widget.data_schema || undefined,
   };
 
   const json = JSON.stringify(pkg);
@@ -317,7 +317,7 @@ export function packageToWidget(pkg: WidgetPackage): Omit<
     fetch: pkg.fetch,
     cache: pkg.cache || null,
     author: pkg.meta.author || null,
-    dataSchema: pkg.data_schema || null,
+    data_schema: pkg.data_schema || null,
   };
 }
 
