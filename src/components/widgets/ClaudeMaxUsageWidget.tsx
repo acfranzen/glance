@@ -7,24 +7,23 @@ import type { Widget } from '@/types/api';
 interface ClaudeMaxUsageData {
   session: {
     percentUsed: number;
-    resetsAt: string;
+    resetsAt: string | null;
   };
   weekAll: {
     percentUsed: number;
-    resetsAt: string;
+    resetsAt: string | null;
   };
   weekSonnet: {
     percentUsed: number;
-    resetsAt: string;
+    resetsAt: string | null;
   };
   extra?: {
-    spent: number;
-    limit: number;
     percentUsed: number;
-    resetsAt: string;
+    spent: string;  // Already formatted, e.g. "$109.03 / $200.00"
+    resetsAt: string | null;
   };
   capturedAt: string;
-  lastUpdated: string;
+  lastUpdated?: string;
   error?: string;
   isDemo?: boolean;
 }
@@ -245,7 +244,7 @@ export function ClaudeMaxUsageWidget({ widget }: ClaudeMaxUsageWidgetProps) {
               />
             </div>
             <div className="text-[10px] text-muted-foreground">
-              ${data.extra.spent.toFixed(2)} / ${data.extra.limit.toFixed(2)} spent · Resets {data.extra.resetsAt}
+              {data.extra.spent} · Resets {data.extra.resetsAt}
             </div>
           </div>
         )}
