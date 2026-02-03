@@ -94,9 +94,26 @@ export function WidgetExportModal({
 
   async function handleCopyPackage() {
     if (!exportData?.package) return;
-    await navigator.clipboard.writeText(exportData.package);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      // Try modern clipboard API first
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(exportData.package);
+      } else {
+        // Fallback for non-secure contexts
+        const textarea = document.createElement('textarea');
+        textarea.value = exportData.package;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
   }
 
   async function handleDownload() {
