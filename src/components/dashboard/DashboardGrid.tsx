@@ -4,6 +4,7 @@ import { useCallback, useState, useEffect, useRef, ComponentType } from 'react';
 import dynamic from 'next/dynamic';
 import { useWidgetStore } from '@/lib/store/widget-store';
 import { ClaudeMaxUsageWidget } from '@/components/widgets/ClaudeMaxUsageWidget';
+import { UnreadEmailsWidget } from '@/components/widgets/UnreadEmailsWidget';
 import { DynamicWidgetLoader } from '@/components/widgets/DynamicWidget';
 import { WidgetContainer } from '@/components/widgets/WidgetContainer';
 import type { Widget } from '@/types/api';
@@ -110,6 +111,16 @@ export function DashboardGrid() {
             onRemove={() => handleRemoveWidget(widget.id)}
           >
             <ClaudeMaxUsageWidget widget={widget} />
+          </WidgetContainer>
+        );
+      case 'unread_emails':
+        return (
+          <WidgetContainer
+            title="Unread Emails"
+            isEditing={isEditing}
+            onRemove={() => handleRemoveWidget(widget.id)}
+          >
+            <UnreadEmailsWidget widget={widget} />
           </WidgetContainer>
         );
       default:
