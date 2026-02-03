@@ -1,5 +1,5 @@
 ---
-name: glance-widget
+name: glance
 description: "Create, update, export, and import Glance dashboard widgets. Use when user wants to: add something to their dashboard, create a widget, track data visually, show metrics/stats, display API data, monitor usage, or asks about dashboard customization. Supports server_code (API-driven), webhook, and agent_refresh (AI-populated) widget types."
 metadata:
   openclaw:
