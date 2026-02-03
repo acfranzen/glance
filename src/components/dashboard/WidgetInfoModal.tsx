@@ -71,6 +71,7 @@ interface WidgetInfo {
   server_code_enabled: boolean;
   source_code?: string;
   server_code?: string;
+  data_schema?: object;
 }
 
 interface CredentialStatus {
@@ -84,7 +85,7 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     metadata: true // Start with metadata expanded
   });
-  const [codeView, setCodeView] = useState<'source' | 'server' | null>(null);
+  const [codeView, setCodeView] = useState<'source' | 'server' | 'schema' | null>(null);
 
   useEffect(() => {
     if (open && widgetSlug) {
@@ -208,14 +209,25 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
 
   // Code view modal
   if (codeView && info) {
-    const code = codeView === 'source' ? info.source_code : info.server_code;
+    const code = codeView === 'source' 
+      ? info.source_code 
+      : codeView === 'server' 
+        ? info.server_code 
+        : info.data_schema 
+          ? JSON.stringify(info.data_schema, null, 2) 
+          : undefined;
     const lines = countLines(code);
+    const title = codeView === 'source' 
+      ? 'Widget Source Code' 
+      : codeView === 'server' 
+        ? 'Server Code' 
+        : 'Data Schema';
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-3xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
-              <span>{codeView === 'source' ? 'Widget Source Code' : 'Server Code'} ({lines} lines)</span>
+              <span>{title} ({lines} lines)</span>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => copyToClipboard(code || '')}>
                   <Copy className="h-4 w-4 mr-1" /> Copy
@@ -498,7 +510,7 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
 
             {/* 5. CODE */}
             <Section title="Code" icon={Code} id="code">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -520,6 +532,19 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
                   <Server className="h-5 w-5 mb-1" />
                   <span className="text-xs">Server Code</span>
                   <span className="text-[10px] text-muted-foreground">{countLines(info.server_code)} lines</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCodeView('schema')}
+                  disabled={!info.data_schema}
+                  className="h-auto py-3 flex-col"
+                >
+                  <Database className="h-5 w-5 mb-1" />
+                  <span className="text-xs">Data Schema</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {info.data_schema ? 'JSON Schema' : 'None'}
+                  </span>
                 </Button>
               </div>
             </Section>
