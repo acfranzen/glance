@@ -252,6 +252,7 @@
 }
 
 /* Mobile responsive improvements */
+/* Mobile: react-grid-layout not used, but keep these in case of edge cases */
 @media (max-width: 639px) {
   .react-grid-layout {
     width: 100% !important;

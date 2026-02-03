@@ -242,41 +242,74 @@ export function DashboardGrid() {
     );
   }
 
-  // Mobile: single column, stacked vertically
-  // Tablet/Desktop: use stored layout
-  const responsiveLayout = isMobile
-    ? layout.map((item, index) => ({
-        ...item,
-        x: 0,
-        y: index * 2, // Reduced vertical spacing for mobile
-        w: 1,
-        h: Math.max(item.h, 2),
-        minW: 1,
-        minH: 2,
-        static: !isEditing,
-      }))
-    : layout.map((item) => ({
-        ...item,
-        static: !isEditing,
-      }));
+  // Constants for layout calculations
+  const mobileRowHeight = 90;
+  const gridMargin: [number, number] = [16, 16];
 
-  // Responsive margins: smaller on mobile
-  const gridMargin: [number, number] = isMobile ? [8, 8] : [16, 16];
-  // Responsive row height: slightly smaller on mobile for better density
-  const rowHeight = isMobile ? 90 : 100;
+  // On mobile, render a simple stacked layout without react-grid-layout
+  // This avoids CSS transform/positioning issues on small screens
+  if (isMobile) {
+    return (
+      <>
+        <div id="dashboard-container" className="w-full">
+          <div className="flex flex-col gap-3">
+            {widgets.map((widget) => {
+              // Calculate min height based on stored layout
+              const layoutItem = layout.find(l => l.i === widget.id);
+              const minHeight = layoutItem ? Math.max(layoutItem.h, 2) * mobileRowHeight : 180;
+              
+              return (
+                <div 
+                  key={widget.id} 
+                  style={{ minHeight: `${minHeight}px` }}
+                  className="w-full"
+                >
+                  {renderWidget(widget)}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <WidgetExportModal
+          open={exportModal.open}
+          onOpenChange={(open) => setExportModal({ ...exportModal, open })}
+          widgetSlug={exportModal.slug}
+          widgetName={exportModal.name}
+        />
+
+        <WidgetAboutModal
+          open={aboutModal.open}
+          onOpenChange={(open) => setAboutModal({ ...aboutModal, open })}
+          widgetSlug={aboutModal.slug}
+          widgetName={aboutModal.name}
+        />
+
+        <WidgetInfoModal
+          open={settingsModal.open}
+          onOpenChange={(open) => setSettingsModal({ ...settingsModal, open })}
+          widgetSlug={settingsModal.slug}
+          widgetName={settingsModal.name}
+        />
+      </>
+    );
+  }
 
   return (
     <>
       <div id="dashboard-container" className="w-full">
         <GridLayout
           className="layout"
-          layout={responsiveLayout}
-          cols={isMobile ? 1 : 12}
-          rowHeight={rowHeight}
+          layout={layout.map((item) => ({
+            ...item,
+            static: !isEditing,
+          }))}
+          cols={12}
+          rowHeight={100}
           width={width}
           onLayoutChange={handleLayoutChange}
-          isDraggable={isEditing && !isMobile}
-          isResizable={isEditing && !isMobile}
+          isDraggable={isEditing}
+          isResizable={isEditing}
           margin={gridMargin}
           containerPadding={[0, 0]}
           useCSSTransforms={true}
