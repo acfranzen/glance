@@ -250,3 +250,31 @@
   right: 0;
   cursor: se-resize;
 }
+
+/* Mobile responsive improvements */
+@media (max-width: 639px) {
+  .react-grid-layout {
+    width: 100% !important;
+  }
+
+  .react-grid-item {
+    max-width: 100%;
+  }
+
+  .react-grid-item > .react-resizable-handle {
+    display: none;
+  }
+
+  .react-grid-item * {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .react-grid-item > .react-resizable-handle::after {
+    width: 6px;
+    height: 6px;
+  }
+}

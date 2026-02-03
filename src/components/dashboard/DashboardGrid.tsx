@@ -59,9 +59,12 @@ export function DashboardGrid() {
     const updateWidth = () => {
       const container = document.getElementById("dashboard-container");
       if (container) {
-        setWidth(container.offsetWidth - 32);
+        // On mobile, use full container width with minimal adjustment
+        const isMobileView = window.innerWidth < 640;
+        setWidth(container.offsetWidth - (isMobileView ? 0 : 16));
       }
-      setIsMobile(window.innerWidth < 768);
+      // Use 640px (sm breakpoint) for mobile detection
+      setIsMobile(window.innerWidth < 640);
     };
 
     updateWidth();
@@ -180,19 +183,28 @@ export function DashboardGrid() {
     );
   }
 
+  // Mobile: single column, stacked vertically
+  // Tablet/Desktop: use stored layout
   const responsiveLayout = isMobile
     ? layout.map((item, index) => ({
         ...item,
         x: 0,
-        y: index * 3,
+        y: index * 2, // Reduced vertical spacing for mobile
         w: 1,
         h: Math.max(item.h, 2),
+        minW: 1,
+        minH: 2,
         static: !isEditing,
       }))
     : layout.map((item) => ({
         ...item,
         static: !isEditing,
       }));
+
+  // Responsive margins: smaller on mobile
+  const gridMargin: [number, number] = isMobile ? [8, 8] : [16, 16];
+  // Responsive row height: slightly smaller on mobile for better density
+  const rowHeight = isMobile ? 90 : 100;
 
   return (
     <>
@@ -201,12 +213,12 @@ export function DashboardGrid() {
           className="layout"
           layout={responsiveLayout}
           cols={isMobile ? 1 : 12}
-          rowHeight={100}
+          rowHeight={rowHeight}
           width={width}
           onLayoutChange={handleLayoutChange}
-          isDraggable={isEditing}
-          isResizable={isEditing}
-          margin={[16, 16]}
+          isDraggable={isEditing && !isMobile}
+          isResizable={isEditing && !isMobile}
+          margin={gridMargin}
           containerPadding={[0, 0]}
           useCSSTransforms={true}
           compactType="vertical"
@@ -214,7 +226,7 @@ export function DashboardGrid() {
           {widgets.map((widget) => (
             <div
               key={widget.id}
-              className="bg-card rounded-lg border shadow-sm overflow-hidden"
+              className="bg-card rounded-lg border shadow-sm overflow-hidden min-w-0"
             >
               {renderWidget(widget)}
             </div>

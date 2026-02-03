@@ -6,7 +6,17 @@ import { AddWidgetModal } from "./AddWidgetModal";
 import { ThemeImportModal } from "./ThemeImportModal";
 import { WidgetImportModal } from "./WidgetImportModal";
 import { Button } from "@/components/ui/button";
-import { Pencil, Check, Sun, Moon, Menu, X, Key, Palette, Upload } from "lucide-react";
+import {
+  Pencil,
+  Check,
+  Sun,
+  Moon,
+  Menu,
+  X,
+  Key,
+  Palette,
+  Upload,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { CredentialsModal } from "./CredentialsModal";
@@ -22,12 +32,12 @@ export function DashboardHeader() {
     <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-40">
       <div className="flex items-center justify-between h-16 px-4 md:px-6">
         {/* Logo */}
-        <div className="flex items-center gap-4">
-          <h1 className="font-serif text-2xl font-bold text-foreground">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <h1 className="font-serif text-xl sm:text-2xl font-bold text-foreground">
             Glance
           </h1>
-          <span className="text-xs text-muted-foreground">
-            Your personal dashboard
+          <span className="hidden sm:inline text-xs text-muted-foreground">
+            OpenClaw&apos;s visual command center.
           </span>
         </div>
 
