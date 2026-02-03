@@ -95,21 +95,7 @@ function getDb(): Database.Database {
     }
   }
 
-  // Migration: Add server_code columns to custom_widgets if they don't exist
-  {
-    const tableInfo = _db
-      .prepare("PRAGMA table_info(custom_widgets)")
-      .all() as Array<{ name: string }>;
-    const hasServerCode = tableInfo.some((col) => col.name === "server_code");
-    if (!hasServerCode) {
-      _db.exec(`ALTER TABLE custom_widgets ADD COLUMN server_code TEXT`);
-      _db.exec(
-        `ALTER TABLE custom_widgets ADD COLUMN server_code_enabled INTEGER DEFAULT 0`,
-      );
-    }
-  }
-
-  // Create custom_widgets table and related indexes (after migration)
+  // Create custom_widgets table FIRST (before migrations)
   _db.exec(`
     -- Custom widget definitions (JSX code stored here)
     CREATE TABLE IF NOT EXISTS custom_widgets (
@@ -127,7 +113,13 @@ function getDb(): Database.Database {
       updated_at TEXT DEFAULT (datetime('now')),
       enabled INTEGER DEFAULT 1,
       server_code TEXT,
-      server_code_enabled INTEGER DEFAULT 0
+      server_code_enabled INTEGER DEFAULT 0,
+      -- Widget package fields
+      credentials TEXT DEFAULT '[]',
+      setup TEXT,
+      fetch TEXT DEFAULT '{"type":"agent_refresh"}',
+      cache TEXT,
+      author TEXT
     );
 
     -- Data providers for widget data fetching
@@ -142,10 +134,34 @@ function getDb(): Database.Database {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    -- Widget setup tracking
+    CREATE TABLE IF NOT EXISTS widget_setups (
+      id TEXT PRIMARY KEY,
+      widget_slug TEXT NOT NULL,
+      status TEXT DEFAULT 'not_configured',
+      verified_at TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Widget data cache (for agent_refresh widgets)
+    CREATE TABLE IF NOT EXISTS widget_data_cache (
+      widget_instance_id TEXT NOT NULL,
+      custom_widget_id TEXT NOT NULL,
+      data TEXT NOT NULL,
+      fetched_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      params_hash TEXT,
+      PRIMARY KEY (widget_instance_id)
+    );
+
     -- Create indexes for custom widgets (column now exists)
     CREATE INDEX IF NOT EXISTS idx_custom_widgets_slug ON custom_widgets(slug);
     CREATE INDEX IF NOT EXISTS idx_widgets_custom_widget_id ON widgets(custom_widget_id);
     CREATE INDEX IF NOT EXISTS idx_data_providers_slug ON data_providers(slug);
+    CREATE INDEX IF NOT EXISTS idx_widget_setups_slug ON widget_setups(widget_slug);
+    CREATE INDEX IF NOT EXISTS idx_widget_data_cache_expires ON widget_data_cache(expires_at);
   `);
 
   return _db;
