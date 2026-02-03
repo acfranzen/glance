@@ -91,13 +91,22 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
     };
   }, [customWidgetId]);
 
-  // Fetch server data if server_code_enabled OR agent_refresh
+  // Fetch server data based on widget type
   useEffect(() => {
-    const fetchType = state.definition?.fetch?.type;
-    const needsServerData = state.definition?.server_code_enabled || fetchType === 'agent_refresh';
-    const slug = state.definition?.slug;
+    if (!state.definition?.slug) {
+      return;
+    }
+
+    // Parse fetch config to determine widget type
+    const fetchConfig = state.definition.fetch ? 
+      (typeof state.definition.fetch === 'string' ? JSON.parse(state.definition.fetch) : state.definition.fetch) 
+      : null;
     
-    if (!needsServerData || !slug) {
+    const isAgentRefresh = fetchConfig?.type === 'agent_refresh';
+    const hasServerCode = state.definition.server_code_enabled;
+
+    // Skip if neither agent_refresh nor server_code
+    if (!isAgentRefresh && !hasServerCode) {
       return;
     }
 
@@ -106,19 +115,28 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
 
     async function fetchServerData() {
       try {
-        const response = await fetch(`/api/widgets/${slug}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            params: config,
-            widget_instance_id: widgetId  // Required for agent_refresh
-          }),
-        });
+        let response: Response;
+        
+        if (isAgentRefresh) {
+          // For agent_refresh widgets, GET from /cache endpoint
+          response = await fetch(`/api/widgets/${state.definition!.slug}/cache`);
+        } else {
+          // For server_code widgets, POST to /execute endpoint
+          response = await fetch(`/api/widgets/${state.definition!.slug}/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ params: config }),
+          });
+        }
+        
         const result = await response.json();
         
         if (mounted) {
           if (result.error) {
             setServerData({ error: result.error });
+          } else if (isAgentRefresh) {
+            // For agent_refresh, data is nested with metadata
+            setServerData(result.data);
           } else {
             setServerData(result.data);
           }
@@ -137,7 +155,7 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
     return () => {
       mounted = false;
     };
-  }, [state.definition, config, widgetId]);
+  }, [state.definition?.server_code_enabled, state.definition?.slug, state.definition?.fetch, config, widgetId]);
 
   // Memoize the transpiled code and widget component
   const { Widget, transpileError } = useMemo(() => {
