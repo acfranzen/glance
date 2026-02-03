@@ -22,7 +22,7 @@ function findCustomWidget(idOrSlug: string) {
 }
 
 /**
- * GET /api/widget-packages/[slug] - Export a custom widget as a package string
+ * GET /api/packages/[slug] - Export a custom widget as a package string
  *
  * Returns:
  * - package: The encoded widget package string (!GW1!...)

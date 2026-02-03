@@ -221,7 +221,7 @@ function checkFetchStatus(pkg: WidgetPackage, setupStatus: SetupStatus): FetchSt
 }
 
 /**
- * POST /api/widget-packages/import - Import a widget from a package string
+ * POST /api/packages/import - Import a widget from a package string
  *
  * Body:
  * - package: The encoded widget package string (!GW1!...)
@@ -413,7 +413,7 @@ export async function POST(request: NextRequest) {
     if (widgetData.fetch.type === "agent_refresh" && widgetData.fetch.schedule) {
       response.cronSchedule = {
         expression: widgetData.fetch.schedule,
-        instructions: widgetData.fetch.instructions || `Refresh widget data for ${widgetData.name}. POST to /api/custom-widgets/${uniqueSlug}/cache with { data: {...} }`,
+        instructions: widgetData.fetch.instructions || `Refresh widget data for ${widgetData.name}. POST to /api/widgets/${uniqueSlug}/cache with { data: {...} }`,
         slug: uniqueSlug,
       };
       response.message += " Cron schedule returned for OpenClaw registration.";

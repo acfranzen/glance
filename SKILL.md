@@ -19,16 +19,16 @@ Personal dashboard at `$GLANCE_URL` (default: `http://localhost:3333`).
 
 ## API Overview
 
-| Endpoint                            | Method | Purpose                          |
-| ----------------------------------- | ------ | -------------------------------- |
-| `/api/credentials`                  | POST   | Store API keys (encrypted)       |
-| `/api/credentials`                  | GET    | List stored credentials + status |
-| `/api/custom-widgets`               | POST   | Create widget definition (code)  |
-| `/api/custom-widgets`               | GET    | List widget definitions          |
-| `/api/custom-widgets/:slug`         | PATCH  | Update widget definition         |
-| `/api/custom-widgets/:slug/execute` | POST   | Execute server code              |
-| `/api/widgets`                      | POST   | Add widget to dashboard          |
-| `/api/widgets`                      | GET    | List dashboard widgets           |
+| Endpoint                      | Method | Purpose                          |
+| ----------------------------- | ------ | -------------------------------- |
+| `/api/credentials`            | POST   | Store API keys (encrypted)       |
+| `/api/credentials`            | GET    | List stored credentials + status |
+| `/api/widgets`                | POST   | Create widget definition (code)  |
+| `/api/widgets`                | GET    | List widget definitions          |
+| `/api/widgets/:slug`          | PATCH  | Update widget definition         |
+| `/api/widgets/:slug/execute`  | POST   | Execute server code              |
+| `/api/dashboard`              | POST   | Add widget to dashboard          |
+| `/api/dashboard`              | GET    | List dashboard widgets           |
 
 ## Creating a Widget (Full Workflow)
 
@@ -49,7 +49,7 @@ Providers: `github`, `anthropic`, `openai`, `vercel`, `openweather`
 ### 2. Create widget definition
 
 ```bash
-curl -X POST $GLANCE_URL/api/custom-widgets \
+curl -X POST $GLANCE_URL/api/widgets \
   -H "Content-Type: application/json" \
   -d '{
     "name": "My Widget",
@@ -68,7 +68,7 @@ curl -X POST $GLANCE_URL/api/custom-widgets \
 ### 3. Add to dashboard
 
 ```bash
-curl -X POST $GLANCE_URL/api/widgets \
+curl -X POST $GLANCE_URL/api/dashboard \
   -H "Content-Type: application/json" \
   -d '{
     "type": "custom",
@@ -81,7 +81,7 @@ curl -X POST $GLANCE_URL/api/widgets \
 ### 4. Execute server code (get fresh data)
 
 ```bash
-curl -X POST $GLANCE_URL/api/custom-widgets/my-widget/execute \
+curl -X POST $GLANCE_URL/api/widgets/my-widget/execute \
   -H "Content-Type: application/json" \
   -d '{ "params": {} }'
 # Returns: { "data": { ... } }

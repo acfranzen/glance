@@ -72,7 +72,7 @@ export function WidgetExportModal({
     setError(null);
 
     try {
-      const url = new URL(`/api/widget-packages/${widgetSlug}`, window.location.origin);
+      const url = new URL(`/api/packages/${widgetSlug}`, window.location.origin);
       if (author) {
         url.searchParams.set('author', author);
       }

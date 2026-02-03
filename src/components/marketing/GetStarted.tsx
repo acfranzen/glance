@@ -16,7 +16,7 @@ const openClawConfig = `### Glance Dashboard
 
 - URL: http://localhost:3333
 - Auth: Bearer <your-token>
-- API: POST /api/custom-widgets to create widgets
+- API: POST /api/widgets to create widgets
 - API: POST /api/credentials to store API keys`;
 
 export function GetStarted() {

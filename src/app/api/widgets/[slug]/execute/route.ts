@@ -25,7 +25,7 @@ function findCustomWidget(idOrSlug: string) {
   return getCustomWidgetBySlug(idOrSlug);
 }
 
-// POST /api/custom-widgets/[slug]/execute - Execute server-side code for a widget
+// POST /api/widgets/[slug]/execute - Execute server-side code for a widget
 export async function POST(
   request: NextRequest,
   context: RouteContext

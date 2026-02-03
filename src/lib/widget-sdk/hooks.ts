@@ -44,7 +44,7 @@ export function createUseData(options: UseDataOptions) {
 
         // If server code is enabled, call the execute endpoint instead
         if (serverCodeEnabled && customWidgetSlug) {
-          response = await fetch(`/api/custom-widgets/${customWidgetSlug}/execute`, {
+          response = await fetch(`/api/widgets/${customWidgetSlug}/execute`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

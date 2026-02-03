@@ -61,7 +61,7 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
     set({ isLoading: true });
 
     try {
-      const response = await fetch('/api/widgets');
+      const response = await fetch('/api/dashboard');
       if (!response.ok) throw new Error('Failed to fetch widgets');
       
       const data = await response.json();
@@ -94,7 +94,7 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
     set({ isLoading: true });
 
     try {
-      const response = await fetch('/api/widgets');
+      const response = await fetch('/api/dashboard');
       if (!response.ok) throw new Error('Failed to fetch widgets');
       
       const data = await response.json();
@@ -134,7 +134,7 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
     const maxY = layout.reduce((max, item) => Math.max(max, item.y + item.h), 0);
 
     try {
-      const response = await fetch('/api/widgets', {
+      const response = await fetch('/api/dashboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -178,7 +178,7 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
     const maxY = layout.reduce((max, item) => Math.max(max, item.y + item.h), 0);
 
     try {
-      const response = await fetch('/api/widgets', {
+      const response = await fetch('/api/dashboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -216,7 +216,7 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
 
   removeWidget: async (widgetId: string) => {
     try {
-      const response = await fetch(`/api/widgets/${widgetId}`, {
+      const response = await fetch(`/api/dashboard/${widgetId}`, {
         method: 'DELETE',
       });
 
@@ -233,7 +233,7 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
 
   updateWidget: async (widgetId: string, updates: Partial<Widget>) => {
     try {
-      const response = await fetch(`/api/widgets/${widgetId}`, {
+      const response = await fetch(`/api/dashboard/${widgetId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -264,7 +264,7 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
       if (widget) {
         const position: Position = { x: item.x, y: item.y, w: item.w, h: item.h };
         try {
-          await fetch(`/api/widgets/${widget.id}`, {
+          await fetch(`/api/dashboard/${widget.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ position }),

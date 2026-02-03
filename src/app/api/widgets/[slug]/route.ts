@@ -25,7 +25,7 @@ function findCustomWidget(idOrSlug: string) {
   return getCustomWidgetBySlug(idOrSlug);
 }
 
-// GET /api/custom-widgets/[slug] - Get a custom widget by ID or slug
+// GET /api/widgets/[slug] - Get a custom widget by ID or slug
 export async function GET(
   request: NextRequest,
   context: RouteContext
@@ -56,7 +56,7 @@ export async function GET(
   }
 }
 
-// PATCH /api/custom-widgets/[slug] - Update a custom widget
+// PATCH /api/widgets/[slug] - Update a custom widget
 export async function PATCH(
   request: NextRequest,
   context: RouteContext
@@ -143,7 +143,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/custom-widgets/[slug] - Delete a custom widget
+// DELETE /api/widgets/[slug] - Delete a custom widget
 export async function DELETE(
   request: NextRequest,
   context: RouteContext

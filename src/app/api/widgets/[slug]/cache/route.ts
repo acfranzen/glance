@@ -14,7 +14,7 @@ interface CacheData {
 }
 
 /**
- * GET /api/custom-widgets/[slug]/cache - Get cached data for a widget
+ * GET /api/widgets/[slug]/cache - Get cached data for a widget
  * 
  * Returns the cached data if available, with freshness metadata.
  */
@@ -87,7 +87,7 @@ export async function GET(
 }
 
 /**
- * POST /api/custom-widgets/[slug]/cache - Push data to widget cache
+ * POST /api/widgets/[slug]/cache - Push data to widget cache
  * 
  * Used by agents to populate cache for agent_refresh widgets.
  * Stores data in SQLite with automatic TTL based on widget config.
@@ -187,7 +187,7 @@ export async function POST(
 }
 
 /**
- * DELETE /api/custom-widgets/[slug]/cache - Clear cached data
+ * DELETE /api/widgets/[slug]/cache - Clear cached data
  */
 export async function DELETE(
   request: NextRequest,

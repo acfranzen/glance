@@ -86,7 +86,7 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
       
       // Fetch widget info and credentials status in parallel
       Promise.all([
-        fetch(`/api/custom-widgets/${widgetSlug}`).then(res => res.json()),
+        fetch(`/api/widgets/${widgetSlug}`).then(res => res.json()),
         fetch('/api/credentials').then(res => res.json()).catch(() => ({ credentials: [] }))
       ]).then(([widgetData, credData]) => {
         setInfo(widgetData);

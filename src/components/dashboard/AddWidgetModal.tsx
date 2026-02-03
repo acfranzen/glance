@@ -39,7 +39,7 @@ export function AddWidgetModal() {
   useEffect(() => {
     if (isOpen) {
       setLoadingCustom(true);
-      fetch('/api/custom-widgets')
+      fetch('/api/widgets')
         .then(res => res.json())
         .then(data => {
           setCustomWidgets(data.custom_widgets || []);

@@ -64,7 +64,7 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
 
     async function fetchDefinition() {
       try {
-        const response = await fetch(`/api/custom-widgets/${customWidgetId}`);
+        const response = await fetch(`/api/widgets/${customWidgetId}`);
         if (!response.ok) {
           throw new Error(`Failed to fetch widget: ${response.status}`);
         }
@@ -106,7 +106,7 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
 
     async function fetchServerData() {
       try {
-        const response = await fetch(`/api/custom-widgets/${slug}/execute`, {
+        const response = await fetch(`/api/widgets/${slug}/execute`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 

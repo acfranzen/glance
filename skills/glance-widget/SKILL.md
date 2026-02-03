@@ -51,19 +51,19 @@ Is data available via API that the widget can call?
 ### Widget Definitions
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/custom-widgets` | Create widget definition |
-| `GET` | `/api/custom-widgets` | List all definitions |
-| `GET` | `/api/custom-widgets/:slug` | Get single definition |
-| `PATCH` | `/api/custom-widgets/:slug` | Update definition |
-| `DELETE` | `/api/custom-widgets/:slug` | Delete definition |
+| `POST` | `/api/widgets` | Create widget definition |
+| `GET` | `/api/widgets` | List all definitions |
+| `GET` | `/api/widgets/:slug` | Get single definition |
+| `PATCH` | `/api/widgets/:slug` | Update definition |
+| `DELETE` | `/api/widgets/:slug` | Delete definition |
 
 ### Widget Instances (Dashboard)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/widgets` | Add widget to dashboard |
-| `GET` | `/api/widgets` | List dashboard widgets |
-| `PATCH` | `/api/widgets/:id` | Update instance (config, position) |
-| `DELETE` | `/api/widgets/:id` | Remove from dashboard |
+| `POST` | `/api/dashboard` | Add widget to dashboard |
+| `GET` | `/api/dashboard` | List dashboard widgets |
+| `PATCH` | `/api/dashboard/:id` | Update instance (config, position) |
+| `DELETE` | `/api/dashboard/:id` | Remove from dashboard |
 
 ### Credentials
 | Method | Endpoint | Description |
@@ -137,7 +137,7 @@ Is data available via API that the widget can call?
 ### Step 1: Create Widget Definition
 
 ```http
-POST /api/custom-widgets
+POST /api/widgets
 Content-Type: application/json
 
 {
@@ -155,7 +155,7 @@ Content-Type: application/json
 ### Step 2: Add to Dashboard
 
 ```http
-POST /api/widgets
+POST /api/dashboard
 Content-Type: application/json
 
 {
@@ -169,7 +169,7 @@ Content-Type: application/json
 ### Step 3: Populate Cache (for agent_refresh)
 
 ```http
-POST /api/custom-widgets/github-prs/cache
+POST /api/widgets/github-prs/cache
 Content-Type: application/json
 
 {
@@ -243,7 +243,7 @@ function Widget({ serverData }) {
 }
 ```
 
-**Key difference:** `agent_refresh` widgets receive data via `serverData` prop, NOT by calling `useData()`. The agent pushes data to `/api/custom-widgets/{slug}/cache`.
+**Key difference:** `agent_refresh` widgets receive data via `serverData` prop, NOT by calling `useData()`. The agent pushes data to `/api/widgets/{slug}/cache`.
 
 ## Server Code (Legacy Alternative)
 
@@ -302,7 +302,7 @@ This is NOT an external API or service. YOU must:
    - API calls via `web_fetch`
 4. **POST the data to the cache:**
    ```http
-   POST /api/custom-widgets/{slug}/cache
+   POST /api/widgets/{slug}/cache
    Content-Type: application/json
    
    {
@@ -323,7 +323,7 @@ This widget shows Claude CLI usage stats. The data comes from running `claude` i
 2. Send: "/status" + Enter
 3. Navigate to Usage tab (Right arrow keys)
 4. Parse the output: Session %, Week %, Extra %
-5. POST to /api/custom-widgets/claude-code-usage/cache
+5. POST to /api/widgets/claude-code-usage/cache
 6. Kill the PTY session
 ```
 
@@ -332,7 +332,7 @@ This widget shows Claude CLI usage stats. The data comes from running `claude` i
 ### Cache Endpoint
 
 ```http
-POST /api/custom-widgets/{slug}/cache
+POST /api/widgets/{slug}/cache
 Content-Type: application/json
 
 {
@@ -389,7 +389,7 @@ Content-Type: application/json
 ### Export
 
 ```http
-GET /api/widget-packages/{slug}
+GET /api/packages/{slug}
 ```
 
 Returns: `{ "package": "!GW1!eJxVj8EKwj..." }`
@@ -397,7 +397,7 @@ Returns: `{ "package": "!GW1!eJxVj8EKwj..." }`
 ### Import
 
 ```http
-POST /api/widget-packages/import
+POST /api/packages/import
 Content-Type: application/json
 
 {
@@ -484,7 +484,7 @@ Error codes: `CREDENTIAL_MISSING`, `RATE_LIMITED`, `NETWORK_ERROR`, `API_ERROR`
 To summarize dashboard for user:
 
 ```
-1. GET /api/widgets → list instances
-2. For each: POST /api/custom-widgets/:slug/execute
+1. GET /api/dashboard → list instances
+2. For each: POST /api/widgets/:slug/execute
 3. Combine into natural language summary
 ```
