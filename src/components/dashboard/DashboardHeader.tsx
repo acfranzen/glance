@@ -1,13 +1,14 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useWidgetStore } from '@/lib/store/widget-store';
-import { AddWidgetModal } from './AddWidgetModal';
-import { Button } from '@/components/ui/button';
-import { Pencil, Check, Sun, Moon, Menu, X, Key } from 'lucide-react';
-import { useTheme } from 'next-themes';
-import { cn } from '@/lib/utils';
-import { CredentialsModal } from './CredentialsModal';
+import { useState } from "react";
+import { useWidgetStore } from "@/lib/store/widget-store";
+import { AddWidgetModal } from "./AddWidgetModal";
+import { ThemeImportModal } from "./ThemeImportModal";
+import { Button } from "@/components/ui/button";
+import { Pencil, Check, Sun, Moon, Menu, X, Key, Palette } from "lucide-react";
+import { useTheme } from "next-themes";
+import { cn } from "@/lib/utils";
+import { CredentialsModal } from "./CredentialsModal";
 
 export function DashboardHeader() {
   const { isEditing, setEditing } = useWidgetStore();
@@ -23,15 +24,17 @@ export function DashboardHeader() {
           <h1 className="font-serif text-2xl font-bold text-foreground">
             Glance
           </h1>
-          <span className="text-xs text-muted-foreground">Your personal dashboard</span>
+          <span className="text-xs text-muted-foreground">
+            Your personal dashboard
+          </span>
         </div>
 
         {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-2">
           <AddWidgetModal />
-          
+
           <Button
-            variant={isEditing ? 'default' : 'outline'}
+            variant={isEditing ? "default" : "outline"}
             onClick={() => setEditing(!isEditing)}
           >
             {isEditing ? (
@@ -56,10 +59,13 @@ export function DashboardHeader() {
             <Key className="h-4 w-4" />
           </Button>
 
+          <ThemeImportModal />
+
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            title="Toggle light/dark mode"
           >
             <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
             <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -72,7 +78,7 @@ export function DashboardHeader() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           >
             <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
             <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -94,16 +100,16 @@ export function DashboardHeader() {
       {/* Mobile Menu */}
       <div
         className={cn(
-          'md:hidden overflow-hidden transition-all duration-300 ease-in-out',
-          mobileMenuOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+          "md:hidden overflow-hidden transition-all duration-300 ease-in-out",
+          mobileMenuOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0",
         )}
       >
         <div className="px-4 py-4 space-y-3 border-t bg-card/80">
           <div className="space-y-2">
             <AddWidgetModal />
-            
+
             <Button
-              variant={isEditing ? 'default' : 'outline'}
+              variant={isEditing ? "default" : "outline"}
               onClick={() => {
                 setEditing(!isEditing);
                 setMobileMenuOpen(false);
@@ -134,11 +140,23 @@ export function DashboardHeader() {
               <Key className="h-4 w-4 mr-2" />
               API Keys
             </Button>
+
+            <ThemeImportModal
+              trigger={
+                <Button variant="outline" className="w-full justify-start">
+                  <Palette className="h-4 w-4 mr-2" />
+                  Theme Settings
+                </Button>
+              }
+            />
           </div>
         </div>
       </div>
 
-      <CredentialsModal open={credentialsOpen} onOpenChange={setCredentialsOpen} />
+      <CredentialsModal
+        open={credentialsOpen}
+        onOpenChange={setCredentialsOpen}
+      />
     </header>
   );
 }
