@@ -533,7 +533,7 @@ export interface CacheConfig {
 
 export interface CredentialRequirement {
   id: string;
-  type: "api_key" | "local_software" | "oauth";
+  type: "api_key" | "local_software" | "oauth" | "agent";
   name: string;
   description: string;
   info?: string;                    // AI agent context for this credential
@@ -551,6 +551,10 @@ export interface CredentialRequirement {
   check_command?: string;
   install_url?: string;
   install_instructions?: string;
+  // For agent (tools/auth that exist on the OpenClaw agent's machine)
+  agent_tool?: string;              // e.g., "gh", "gcloud", "aws"
+  agent_auth_check?: string;        // Command to verify auth: "gh auth status"
+  agent_auth_instructions?: string; // How to authenticate the tool
 }
 
 export interface SetupConfig {
