@@ -178,6 +178,34 @@ Content-Type: application/json
 }
 ```
 
+### Step 4: Verify Widget Renders
+
+**Always verify the widget appears and displays data correctly:**
+
+```javascript
+// Use browser automation to verify
+browser.action = 'snapshot';
+browser.targetUrl = 'http://localhost:3333';
+
+// Look for the widget by title in the snapshot
+// The widget should show actual data, not "Waiting for data..."
+// If stuck on loading, check:
+// 1. Cache was populated (Step 3)
+// 2. Widget instance exists on dashboard (Step 2)
+// 3. Widget ID matches between definition and instance
+```
+
+**Verification checklist:**
+- [ ] Widget visible on dashboard (not just in database)
+- [ ] Shows actual data, not loading spinner
+- [ ] Data matches what was pushed to cache
+- [ ] No error states displayed
+
+**Common issues:**
+- "Waiting for data..." → Cache not populated or widget_instance_id mismatch
+- Widget not visible → Step 2 (add to dashboard) was skipped
+- Wrong data → Check slug matches between definition and cache POST
+
 ## Widget Code Template (agent_refresh)
 
 For `agent_refresh` widgets, use `serverData` prop (NOT `useData` hook):

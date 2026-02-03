@@ -91,9 +91,13 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
     };
   }, [customWidgetId]);
 
-  // Fetch server data if server_code_enabled
+  // Fetch server data if server_code_enabled OR agent_refresh
   useEffect(() => {
-    if (!state.definition?.server_code_enabled || !state.definition?.slug) {
+    const fetchType = state.definition?.fetch?.type;
+    const needsServerData = state.definition?.server_code_enabled || fetchType === 'agent_refresh';
+    const slug = state.definition?.slug;
+    
+    if (!needsServerData || !slug) {
       return;
     }
 
@@ -102,10 +106,13 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
 
     async function fetchServerData() {
       try {
-        const response = await fetch(`/api/custom-widgets/${state.definition!.slug}/execute`, {
+        const response = await fetch(`/api/custom-widgets/${slug}/execute`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ params: config }),
+          body: JSON.stringify({ 
+            params: config,
+            widget_instance_id: widgetId  // Required for agent_refresh
+          }),
         });
         const result = await response.json();
         
@@ -130,7 +137,7 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
     return () => {
       mounted = false;
     };
-  }, [state.definition?.server_code_enabled, state.definition?.slug, config]);
+  }, [state.definition, config, widgetId]);
 
   // Memoize the transpiled code and widget component
   const { Widget, transpileError } = useMemo(() => {
