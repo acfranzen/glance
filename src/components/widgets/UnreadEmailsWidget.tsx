@@ -12,6 +12,7 @@ interface EmailItem {
   date: string;
   labels: string[];
   url: string;
+  summary?: string;
 }
 
 interface UnreadEmailsData {
@@ -182,6 +183,11 @@ export function UnreadEmailsWidget({ widget }: UnreadEmailsWidgetProps) {
                 <div className="text-xs text-muted-foreground truncate mt-0.5">
                   {truncate(email.subject, 45)}
                 </div>
+                {email.summary && (
+                  <div className="text-[10px] text-muted-foreground/70 truncate mt-0.5 italic">
+                    {truncate(email.summary, 60)}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
                 <span className="text-[10px] text-muted-foreground/70">
