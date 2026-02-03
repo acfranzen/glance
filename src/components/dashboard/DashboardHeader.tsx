@@ -4,17 +4,19 @@ import { useState } from "react";
 import { useWidgetStore } from "@/lib/store/widget-store";
 import { AddWidgetModal } from "./AddWidgetModal";
 import { ThemeImportModal } from "./ThemeImportModal";
+import { WidgetImportModal } from "./WidgetImportModal";
 import { Button } from "@/components/ui/button";
-import { Pencil, Check, Sun, Moon, Menu, X, Key, Palette } from "lucide-react";
+import { Pencil, Check, Sun, Moon, Menu, X, Key, Palette, Upload } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { CredentialsModal } from "./CredentialsModal";
 
 export function DashboardHeader() {
-  const { isEditing, setEditing } = useWidgetStore();
+  const { isEditing, setEditing, refreshWidgets } = useWidgetStore();
   const { theme, setTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [credentialsOpen, setCredentialsOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   return (
     <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-40">
@@ -32,6 +34,15 @@ export function DashboardHeader() {
         {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-2">
           <AddWidgetModal />
+
+          <Button
+            variant="outline"
+            onClick={() => setImportOpen(true)}
+            title="Import Widget Package"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Import
+          </Button>
 
           <Button
             variant={isEditing ? "default" : "outline"}
@@ -109,6 +120,18 @@ export function DashboardHeader() {
             <AddWidgetModal />
 
             <Button
+              variant="outline"
+              onClick={() => {
+                setImportOpen(true);
+                setMobileMenuOpen(false);
+              }}
+              className="w-full justify-start"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Import Widget
+            </Button>
+
+            <Button
               variant={isEditing ? "default" : "outline"}
               onClick={() => {
                 setEditing(!isEditing);
@@ -156,6 +179,14 @@ export function DashboardHeader() {
       <CredentialsModal
         open={credentialsOpen}
         onOpenChange={setCredentialsOpen}
+      />
+
+      <WidgetImportModal
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImportComplete={() => {
+          refreshWidgets();
+        }}
       />
     </header>
   );

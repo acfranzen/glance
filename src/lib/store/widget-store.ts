@@ -31,6 +31,7 @@ interface WidgetState {
 
 interface WidgetActions {
   initialize: () => Promise<void>;
+  refreshWidgets: () => Promise<void>;
   setEditing: (editing: boolean) => void;
   addWidget: (type: WidgetType, title?: string) => Promise<void>;
   addCustomWidget: (customWidgetId: string, title: string, defaultSize?: { w: number; h: number }) => Promise<void>;
@@ -60,12 +61,12 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
     set({ isLoading: true });
 
     try {
-      const response = await fetch('/api/widgets');
+      const response = await fetch('/api/widgets/instances');
       if (!response.ok) throw new Error('Failed to fetch widgets');
-      
+
       const data = await response.json();
       const widgets: Widget[] = data.widgets || [];
-      
+
       // Build layout from widget positions
       const layout: LayoutItem[] = widgets.map((w: Widget) => ({
         i: w.id,
@@ -89,6 +90,38 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
     }
   },
 
+  refreshWidgets: async () => {
+    set({ isLoading: true });
+
+    try {
+      const response = await fetch('/api/widgets/instances');
+      if (!response.ok) throw new Error('Failed to fetch widgets');
+      
+      const data = await response.json();
+      const widgets: Widget[] = data.widgets || [];
+      
+      // Build layout from widget positions
+      const layout: LayoutItem[] = widgets.map((w: Widget) => ({
+        i: w.id,
+        x: w.position?.x || 0,
+        y: w.position?.y || 0,
+        w: w.position?.w || DEFAULT_SIZES[w.type]?.w || 3,
+        h: w.position?.h || DEFAULT_SIZES[w.type]?.h || 2,
+        minW: DEFAULT_SIZES[w.type]?.minW || 2,
+        minH: DEFAULT_SIZES[w.type]?.minH || 2,
+      }));
+
+      set({
+        widgets,
+        layout,
+        isLoading: false,
+      });
+    } catch (error) {
+      console.error('Failed to refresh widgets:', error);
+      set({ isLoading: false });
+    }
+  },
+
   setEditing: (editing: boolean) => {
     set({ isEditing: editing });
   },
@@ -101,7 +134,7 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
     const maxY = layout.reduce((max, item) => Math.max(max, item.y + item.h), 0);
 
     try {
-      const response = await fetch('/api/widgets', {
+      const response = await fetch('/api/widgets/instances', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -145,7 +178,7 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
     const maxY = layout.reduce((max, item) => Math.max(max, item.y + item.h), 0);
 
     try {
-      const response = await fetch('/api/widgets', {
+      const response = await fetch('/api/widgets/instances', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -183,7 +216,7 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
 
   removeWidget: async (widgetId: string) => {
     try {
-      const response = await fetch(`/api/widgets/${widgetId}`, {
+      const response = await fetch(`/api/widgets/instances/${widgetId}`, {
         method: 'DELETE',
       });
 
@@ -200,7 +233,7 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
 
   updateWidget: async (widgetId: string, updates: Partial<Widget>) => {
     try {
-      const response = await fetch(`/api/widgets/${widgetId}`, {
+      const response = await fetch(`/api/widgets/instances/${widgetId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -231,7 +264,7 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
       if (widget) {
         const position: Position = { x: item.x, y: item.y, w: item.w, h: item.h };
         try {
-          await fetch(`/api/widgets/${widget.id}`, {
+          await fetch(`/api/widgets/instances/${widget.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ position }),

@@ -2043,6 +2043,358 @@ Agent: "Hey, PR #142 on Libra just got merged! 🎉"
 
 ---
 
+## Widget Package System
+
+Widget packages enable portable, shareable widget definitions with declarative requirements. This system supports WeakAuras-style sharing via compressed base64 strings.
+
+### Package Structure Overview
+
+```
+Widget Package
+├── meta (identity: name, slug, description, author, version)
+├── widget (display: source_code, default_size, min_size)
+├── fetch (data source: server_code | webhook | agent_refresh)
+├── cache (freshness: ttl, staleness, fallback behavior)
+├── credentials[] (requirements: API keys, local software)
+├── setup? (one-time config: agent_skill instructions)
+├── config_schema? (user options: repo name, refresh interval)
+└── error? (retry, fallback, timeout configuration)
+```
+
+### Fetch Type Decision Tree
+
+Choosing the right fetch type is critical for widget functionality:
+
+```
+Is data available via API?
+├── YES → Can widget call directly (CORS-safe)?
+│   ├── YES → Use server_code
+│   └── NO → Use agent_refresh
+└── NO → Use agent_refresh (agent computes/fetches)
+```
+
+**Detailed breakdown:**
+
+| Scenario | Fetch Type | Example |
+|----------|-----------|---------|
+| Public API, CORS-enabled | `server_code` | Weather APIs |
+| Authenticated API (GitHub, etc.) | `server_code` | GitHub PRs, Linear issues |
+| External webhook pushes data | `webhook` | Stripe events, GitHub webhooks |
+| Local software required | `agent_refresh` | Homebrew package counts |
+| Agent must compute/fetch | `agent_refresh` | System stats, custom scrapers |
+| Complex multi-step data | `agent_refresh` | Aggregated dashboards |
+
+### Agent Refresh Contract
+
+When a widget uses `fetch.type = "agent_refresh"`, the OpenClaw agent **MUST** follow this contract:
+
+#### 1. Periodic Updates
+
+The agent should refresh data based on:
+- `fetch.schedule` - Cron expression (e.g., `"*/5 * * * *"` for every 5 minutes)
+- `fetch.expected_freshness_seconds` - Maximum age before data is "stale"
+- If no schedule, agent must manually trigger refreshes
+
+#### 2. Data Push Endpoint
+
+```http
+POST /api/custom-widgets/{slug}/cache
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "data": {
+    "packages": 142,
+    "outdated": 5,
+    "fetchedAt": "2026-02-03T18:30:00.000Z"
+  }
+}
+```
+
+#### 3. Required Data Fields
+
+Always include in the data payload:
+- `fetchedAt` - ISO 8601 timestamp of when data was fetched
+- Any widget-specific fields the source_code expects
+
+#### 4. Error Handling
+
+On fetch errors:
+- **DO NOT** overwrite cache with error data
+- Retry on next cycle based on `error.retry` config
+- The widget will use stale data per `cache.on_error` setting
+
+#### 5. Example Agent Workflow
+
+```javascript
+// Cron job triggered by schedule: "*/15 * * * *"
+async function refreshHomebrew(slug) {
+  try {
+    // 1. Execute local command
+    const result = await exec('brew list --formula | wc -l');
+    const count = parseInt(result.stdout.trim());
+    
+    // 2. Push to widget cache
+    await fetch(`${GLANCE_URL}/api/custom-widgets/${slug}/cache`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GLANCE_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        data: {
+          packageCount: count,
+          fetchedAt: new Date().toISOString()
+        }
+      })
+    });
+  } catch (error) {
+    // Don't overwrite cache on error - widget will use stale data
+    console.error('Homebrew refresh failed:', error);
+  }
+}
+```
+
+### Credential Injection Pattern
+
+Server code accesses credentials securely via `getCredential()`:
+
+```javascript
+// In server_code
+const token = await getCredential('github');
+
+const response = await fetch('https://api.github.com/user/repos', {
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/vnd.github+json'
+  }
+});
+
+return await response.json();
+```
+
+**Available credential types:**
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `api_key` | API keys stored in Glance | GitHub PAT, OpenWeather key |
+| `local_software` | Software installed on agent's machine | Homebrew, Docker |
+| `oauth` | OAuth tokens (future) | Google Calendar |
+
+### Cache Configuration
+
+Control data freshness and staleness behavior:
+
+```typescript
+interface CacheConfig {
+  ttl_seconds: number;              // How long data is "fresh"
+  max_staleness_seconds?: number;   // How long to show stale data
+  storage?: "memory" | "sqlite";    // Default: sqlite
+  on_error?: "use_stale" | "show_error";  // Behavior when fetch fails
+  info?: string;                    // AI context
+}
+```
+
+### Error Configuration
+
+Handle failures gracefully:
+
+```typescript
+interface ErrorConfig {
+  retry?: {
+    max_attempts: number;
+    backoff_ms: number;
+  };
+  fallback?: "use_stale" | "show_error" | "show_placeholder";
+  placeholder_data?: unknown;
+  timeout_ms?: number;
+}
+```
+
+### Complete Examples
+
+#### Example 1: Server Code Widget (GitHub PRs)
+
+```json
+{
+  "version": 1,
+  "type": "glance-widget",
+  "meta": {
+    "name": "GitHub PRs",
+    "slug": "github-prs",
+    "description": "Shows open pull requests",
+    "author": "OpenClaw"
+  },
+  "widget": {
+    "source_code": "function Widget() { ... }",
+    "server_code": "const token = await getCredential('github'); ...",
+    "server_code_enabled": true,
+    "default_size": { "w": 4, "h": 3 },
+    "min_size": { "w": 2, "h": 2 },
+    "refresh_interval": 300
+  },
+  "credentials": [
+    {
+      "id": "github",
+      "type": "api_key",
+      "name": "GitHub Personal Access Token",
+      "description": "Token with repo scope for reading PRs",
+      "obtain_url": "https://github.com/settings/tokens",
+      "obtain_instructions": "Create a token with 'repo' scope"
+    }
+  ],
+  "fetch": {
+    "type": "server_code",
+    "info": "Fetches PRs from GitHub API using stored token"
+  },
+  "cache": {
+    "ttl_seconds": 300,
+    "max_staleness_seconds": 900,
+    "on_error": "use_stale"
+  }
+}
+```
+
+#### Example 2: Webhook Widget (Stripe Events)
+
+```json
+{
+  "version": 1,
+  "type": "glance-widget",
+  "meta": {
+    "name": "Stripe Events",
+    "slug": "stripe-events",
+    "description": "Shows recent Stripe webhook events"
+  },
+  "widget": {
+    "source_code": "function Widget() { ... }",
+    "default_size": { "w": 4, "h": 4 }
+  },
+  "fetch": {
+    "type": "webhook",
+    "webhook_path": "/api/webhooks/stripe",
+    "webhook_setup_instructions": "Configure your Stripe webhook to POST to this endpoint"
+  },
+  "setup": {
+    "description": "Configure Stripe webhook",
+    "agent_skill": "1. Go to Stripe Dashboard > Webhooks\n2. Add endpoint: {glance_url}/api/webhooks/stripe\n3. Select events to listen for",
+    "verification": {
+      "type": "cache_populated",
+      "target": "stripe-events"
+    },
+    "idempotent": true
+  },
+  "cache": {
+    "ttl_seconds": 60,
+    "on_error": "use_stale"
+  }
+}
+```
+
+#### Example 3: Agent Refresh Widget (Homebrew Packages)
+
+```json
+{
+  "version": 1,
+  "type": "glance-widget",
+  "meta": {
+    "name": "Homebrew Status",
+    "slug": "homebrew-status",
+    "description": "Shows installed Homebrew packages and updates"
+  },
+  "widget": {
+    "source_code": "function Widget() {\n  const { data } = useData('homebrew', {});\n  if (!data) return <Loading />;\n  return (\n    <Card className=\"h-full\">\n      <CardHeader><CardTitle>Homebrew</CardTitle></CardHeader>\n      <CardContent>\n        <Stat label=\"Packages\" value={data.packageCount} />\n        <p className=\"text-xs text-muted-foreground\">Updated {data.fetchedAt}</p>\n      </CardContent>\n    </Card>\n  );\n}",
+    "default_size": { "w": 2, "h": 2 }
+  },
+  "credentials": [
+    {
+      "id": "homebrew",
+      "type": "local_software",
+      "name": "Homebrew",
+      "description": "macOS package manager",
+      "check_command": "which brew",
+      "install_url": "https://brew.sh",
+      "install_instructions": "Run: /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+    }
+  ],
+  "fetch": {
+    "type": "agent_refresh",
+    "instructions": "Run `brew list --formula | wc -l` to get package count, then POST to /api/custom-widgets/homebrew-status/cache",
+    "schedule": "*/15 * * * *",
+    "expected_freshness_seconds": 900,
+    "max_staleness_seconds": 3600
+  },
+  "cache": {
+    "ttl_seconds": 900,
+    "max_staleness_seconds": 3600,
+    "on_error": "use_stale"
+  }
+}
+```
+
+### Import Flow
+
+When importing a widget package:
+
+1. **Decode** - Decompress the `!GW1!...` string
+2. **Validate** - Check structure and required fields
+3. **Check credentials** - Report which credentials are missing
+4. **Check setup** - Verify if one-time setup is needed
+5. **Import** - Create widget definition in database
+6. **Register cron** - If `agent_refresh` with `schedule`, OpenClaw registers cron job
+7. **Add to dashboard** (optional) - Create widget instance
+
+**Import response with cron schedule:**
+
+```json
+{
+  "valid": true,
+  "widget": {
+    "id": "cw_abc123",
+    "name": "Homebrew Status",
+    "slug": "homebrew-status"
+  },
+  "cronSchedule": {
+    "expression": "*/15 * * * *",
+    "instructions": "Run `brew list --formula | wc -l` to get package count...",
+    "slug": "homebrew-status"
+  },
+  "message": "Widget imported successfully! Cron schedule returned for OpenClaw registration."
+}
+```
+
+### Sharing Widgets
+
+Export a widget as a shareable string:
+
+```http
+GET /api/widget-packages/{slug}
+Authorization: Bearer <token>
+```
+
+Returns:
+```json
+{
+  "package": "!GW1!eJxVj8EKwjAQRP+l5xY2tFj1JnjyIuJd..."
+}
+```
+
+Import from a package string:
+
+```http
+POST /api/widget-packages/import
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "package": "!GW1!eJxVj8EKwjAQRP+l5xY2tFj1JnjyIuJd...",
+  "dry_run": false,
+  "auto_add_to_dashboard": true
+}
+```
+
+---
+
 ## Styling
 
 All components support a `className` prop for custom styling. Glance uses Tailwind CSS, so you can use any Tailwind utility classes:

@@ -4,28 +4,27 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { nanoid } from 'nanoid';
 import { validateAuthOrInternal } from '@/lib/auth';
-import { getAllWidgets, createWidget, getWidget } from '@/lib/db';
-import type { CreateWidgetRequest, Widget } from '@/types/api';
+import {
+  getAllCustomWidgets,
+  getCustomWidgetBySlug,
+  createCustomWidget,
+  getCustomWidget,
+  CredentialRequirement,
+  SetupConfig,
+  FetchConfig,
+  CacheConfig,
+} from '@/lib/db';
+import { validateServerCode } from '@/lib/widget-sdk/server-executor';
 
-// Default sizes for widget types
-const DEFAULT_SIZES: Record<string, { w: number; h: number }> = {
-  clock: { w: 3, h: 2 },
-  weather: { w: 3, h: 2 },
-  notes: { w: 4, h: 3 },
-  bookmarks: { w: 3, h: 3 },
-  stat_card: { w: 2, h: 2 },
-  markdown: { w: 4, h: 3 },
-  line_chart: { w: 6, h: 3 },
-  bar_chart: { w: 6, h: 3 },
-  list: { w: 4, h: 4 },
-  table: { w: 6, h: 4 },
-  github_prs: { w: 4, h: 3 },
-  calendar_agenda: { w: 4, h: 3 },
-  anthropic_usage: { w: 3, h: 3 },
-  openai_usage: { w: 3, h: 3 },
-};
+// Helper to slugify a name
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
 
-// GET /api/widgets - List all widgets
+// GET /api/widgets - List all custom widget definitions
 export async function GET(request: NextRequest) {
   const auth = validateAuthOrInternal(request);
   if (!auth.authorized) {
@@ -33,30 +32,20 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const rows = getAllWidgets();
-    const widgets: Widget[] = rows.map((row) => ({
-      id: row.id,
-      type: row.type,
-      title: row.title,
-      config: JSON.parse(row.config),
-      position: JSON.parse(row.position),
-      data_source: row.data_source ? JSON.parse(row.data_source) : undefined,
-      custom_widget_id: (row as { custom_widget_id?: string }).custom_widget_id || undefined,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    }));
+    const includeDisabled = request.nextUrl.searchParams.get('include_disabled') === 'true';
+    const customWidgets = getAllCustomWidgets(includeDisabled);
 
-    return NextResponse.json({ widgets });
+    return NextResponse.json({ custom_widgets: customWidgets });
   } catch (error) {
-    console.error('Failed to fetch widgets:', error);
+    console.error('Failed to fetch custom widgets:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch widgets' },
+      { error: 'Failed to fetch custom widgets' },
       { status: 500 }
     );
   }
 }
 
-// POST /api/widgets - Create a widget
+// POST /api/widgets - Create a new custom widget definition
 export async function POST(request: NextRequest) {
   const auth = validateAuthOrInternal(request);
   if (!auth.authorized) {
@@ -64,69 +53,129 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body: CreateWidgetRequest = await request.json();
+    const body = await request.json();
 
-    if (!body.type) {
+    // Validate required fields
+    if (!body.name || typeof body.name !== 'string') {
       return NextResponse.json(
-        { error: 'Widget type is required' },
+        { error: 'Name is required' },
         { status: 400 }
       );
     }
 
-    // For custom widgets, custom_widget_id is required
-    if (body.type === 'custom' && !body.custom_widget_id) {
+    if (!body.source_code || typeof body.source_code !== 'string') {
       return NextResponse.json(
-        { error: 'custom_widget_id is required for custom widget type' },
+        { error: 'Source code is required' },
         { status: 400 }
       );
     }
 
-    const id = nanoid();
-    const title = body.title || body.type.charAt(0).toUpperCase() + body.type.slice(1);
-    const config = body.config || {};
-    const defaultSize = DEFAULT_SIZES[body.type] || { w: 3, h: 2 };
+    // Generate or validate slug
+    let slug = body.slug || slugify(body.name);
+    
+    // Check if slug already exists
+    const existing = getCustomWidgetBySlug(slug);
+    if (existing) {
+      // Append a random suffix
+      slug = `${slug}-${nanoid(6)}`;
+    }
 
-    // Calculate position for new widget (place at bottom)
-    const existingWidgets = getAllWidgets();
-    let maxY = 0;
-    for (const w of existingWidgets) {
-      const pos = JSON.parse(w.position);
-      if (pos.y + pos.h > maxY) {
-        maxY = pos.y + pos.h;
+    // Parse and validate sizes
+    const defaultSize = body.default_size || { w: 4, h: 3 };
+    const minSize = body.min_size || { w: 2, h: 2 };
+
+    if (typeof defaultSize.w !== 'number' || typeof defaultSize.h !== 'number') {
+      return NextResponse.json(
+        { error: 'default_size must have numeric w and h properties' },
+        { status: 400 }
+      );
+    }
+
+    if (typeof minSize.w !== 'number' || typeof minSize.h !== 'number') {
+      return NextResponse.json(
+        { error: 'min_size must have numeric w and h properties' },
+        { status: 400 }
+      );
+    }
+
+    // Parse data providers
+    const dataProviders = Array.isArray(body.data_providers) 
+      ? body.data_providers.filter((p: unknown) => typeof p === 'string')
+      : [];
+
+    // Parse refresh interval
+    const refreshInterval = typeof body.refresh_interval === 'number'
+      ? body.refresh_interval
+      : 300;
+
+    // Parse server code fields
+    const serverCode = typeof body.server_code === 'string' ? body.server_code : null;
+    const serverCodeEnabled = body.server_code_enabled === true;
+
+    // Validate server code if provided and enabled
+    if (serverCode && serverCodeEnabled) {
+      const validation = validateServerCode(serverCode);
+      if (!validation.valid) {
+        return NextResponse.json(
+          { error: `Invalid server code: ${validation.error}` },
+          { status: 400 }
+        );
       }
     }
 
-    const position = body.position || {
-      x: 0,
-      y: maxY,
-      w: defaultSize.w,
-      h: defaultSize.h,
-    };
+    // Parse widget package fields
+    const credentials: CredentialRequirement[] = Array.isArray(body.credentials)
+      ? body.credentials
+      : [];
+    const setup: SetupConfig | null = body.setup && typeof body.setup === 'object'
+      ? body.setup
+      : null;
+    const fetch: FetchConfig = body.fetch && typeof body.fetch === 'object'
+      ? body.fetch
+      : { type: 'server_code' };
+    const cache: CacheConfig | null = body.cache && typeof body.cache === 'object'
+      ? body.cache
+      : null;
+    const author: string | null = typeof body.author === 'string'
+      ? body.author
+      : null;
 
-    createWidget(id, body.type, title, config, position, body.data_source, body.custom_widget_id);
+    // Generate ID
+    const id = `cw_${nanoid(12)}`;
 
-    const created = getWidget(id);
+    // Create the custom widget
+    createCustomWidget(
+      id,
+      body.name,
+      slug,
+      body.description || null,
+      body.source_code,
+      null, // compiled_code will be generated client-side
+      defaultSize,
+      minSize,
+      dataProviders,
+      refreshInterval,
+      true, // enabled by default
+      serverCode,
+      serverCodeEnabled,
+      credentials,
+      setup,
+      fetch,
+      cache,
+      author
+    );
+
+    // Fetch and return the created widget
+    const created = getCustomWidget(id);
     if (!created) {
-      throw new Error('Failed to create widget');
+      throw new Error('Failed to create custom widget');
     }
 
-    const widget: Widget = {
-      id: created.id,
-      type: created.type,
-      title: created.title,
-      config: JSON.parse(created.config),
-      position: JSON.parse(created.position),
-      data_source: created.data_source ? JSON.parse(created.data_source) : undefined,
-      custom_widget_id: (created as { custom_widget_id?: string }).custom_widget_id || undefined,
-      created_at: created.created_at,
-      updated_at: created.updated_at,
-    };
-
-    return NextResponse.json(widget, { status: 201 });
+    return NextResponse.json(created, { status: 201 });
   } catch (error) {
-    console.error('Failed to create widget:', error);
+    console.error('Failed to create custom widget:', error);
     return NextResponse.json(
-      { error: 'Failed to create widget' },
+      { error: error instanceof Error ? error.message : 'Failed to create custom widget' },
       { status: 500 }
     );
   }

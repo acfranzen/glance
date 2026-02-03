@@ -61,6 +61,47 @@ export const PROVIDERS = {
 
 export type Provider = keyof typeof PROVIDERS;
 
+// Custom provider configurations (registered at runtime from widget packages)
+const customProviders: Record<string, {
+  name: string;
+  description: string;
+  validateUrl?: string;
+  validateMethod?: "GET" | "POST";
+  validateHeaders?: Record<string, string>;
+  authHeader?: string;
+}> = {};
+
+/**
+ * Register a custom provider configuration for validation
+ */
+export function registerCustomProvider(
+  provider: string,
+  config: {
+    name: string;
+    description: string;
+    validateUrl?: string;
+    validateMethod?: "GET" | "POST";
+    validateHeaders?: Record<string, string>;
+    authHeader?: string;
+  },
+): void {
+  customProviders[provider] = config;
+}
+
+/**
+ * Get custom provider configuration
+ */
+export function getCustomProvider(provider: string) {
+  return customProviders[provider];
+}
+
+/**
+ * Check if a provider is a known built-in provider
+ */
+export function isBuiltInProvider(provider: string): provider is Provider {
+  return provider in PROVIDERS;
+}
+
 // Lazy-initialized - credentials table will be created on first use
 let _initialized = false;
 
@@ -283,10 +324,18 @@ export function getCredentialById(id: string): Credential | null {
 }
 
 /**
- * Get decrypted credential value for a provider
+ * Get decrypted credential value for a provider (built-in only)
  * Falls back to environment variable if no stored credential exists
  */
 export function getCredential(provider: Provider): string | null {
+  return getCredentialByProvider(provider);
+}
+
+/**
+ * Get decrypted credential value for any provider string
+ * Works with both built-in and custom providers
+ */
+export function getCredentialByProvider(provider: string): string | null {
   try {
     const row = getStmts().getByProvider.get(provider) as CredentialRow | undefined;
 
@@ -294,10 +343,12 @@ export function getCredential(provider: Provider): string | null {
       return decrypt(row.encrypted_value, row.iv, row.auth_tag);
     }
 
-    // Fallback to environment variable
-    const providerConfig = PROVIDERS[provider];
-    if (providerConfig?.envFallback) {
-      return process.env[providerConfig.envFallback] || null;
+    // Fallback to environment variable for built-in providers
+    if (isBuiltInProvider(provider)) {
+      const providerConfig = PROVIDERS[provider];
+      if (providerConfig?.envFallback) {
+        return process.env[providerConfig.envFallback] || null;
+      }
     }
 
     return null;
@@ -305,9 +356,11 @@ export function getCredential(provider: Provider): string | null {
     console.error(`Failed to get credential for ${provider}:`, error);
 
     // Fallback to env on decryption error (e.g., AUTH_TOKEN changed)
-    const providerConfig = PROVIDERS[provider];
-    if (providerConfig?.envFallback) {
-      return process.env[providerConfig.envFallback] || null;
+    if (isBuiltInProvider(provider)) {
+      const providerConfig = PROVIDERS[provider];
+      if (providerConfig?.envFallback) {
+        return process.env[providerConfig.envFallback] || null;
+      }
     }
 
     return null;
@@ -325,10 +378,23 @@ export function getCredentialValue(id: string): string | null {
 }
 
 /**
- * Store a new credential
+ * Store a new credential (built-in provider)
  */
 export function createCredential(
   provider: Provider,
+  name: string,
+  value: string,
+  metadata: Record<string, unknown> = {},
+): Credential {
+  return createCredentialForProvider(provider, name, value, metadata);
+}
+
+/**
+ * Store a new credential for any provider string
+ * Works with both built-in and custom providers
+ */
+export function createCredentialForProvider(
+  provider: string,
   name: string,
   value: string,
   metadata: Record<string, unknown> = {},
@@ -383,16 +449,25 @@ export function deleteCredential(id: string): boolean {
 }
 
 /**
- * Check if a provider has a configured credential
+ * Check if a provider has a configured credential (built-in)
  */
 export function hasCredential(provider: Provider): boolean {
+  return hasCredentialForProvider(provider);
+}
+
+/**
+ * Check if any provider (built-in or custom) has a configured credential
+ */
+export function hasCredentialForProvider(provider: string): boolean {
   const row = getStmts().getByProvider.get(provider) as CredentialRow | undefined;
   if (row) return true;
 
-  // Check env fallback
-  const providerConfig = PROVIDERS[provider];
-  if (providerConfig?.envFallback && process.env[providerConfig.envFallback]) {
-    return true;
+  // Check env fallback for built-in providers
+  if (isBuiltInProvider(provider)) {
+    const providerConfig = PROVIDERS[provider];
+    if (providerConfig?.envFallback && process.env[providerConfig.envFallback]) {
+      return true;
+    }
   }
 
   return false;
@@ -491,6 +566,59 @@ export async function validateCredential(
     // Other errors might be permission-related but key is valid
     if (response.status >= 400 && response.status < 500) {
       return { valid: true }; // Assume key is valid but might lack permissions
+    }
+
+    return { valid: false, error: `API returned status ${response.status}` };
+  } catch (error) {
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : "Validation failed",
+    };
+  }
+}
+
+/**
+ * Validate a credential using custom validation config
+ * Used for credentials from widget packages
+ */
+export async function validateCustomCredential(
+  value: string,
+  validation: {
+    url: string;
+    method?: "GET" | "POST";
+    headers?: Record<string, string>;
+    auth_header?: string;
+  },
+): Promise<{ valid: boolean; error?: string }> {
+  try {
+    const method = validation.method || "GET";
+    const authHeader = validation.auth_header || "Authorization: Bearer {token}";
+    
+    // Parse auth header format (e.g., "Authorization: Bearer {token}" or "X-API-Key: {token}")
+    const [headerName, headerValueTemplate] = authHeader.split(": ");
+    const headerValue = headerValueTemplate.replace("{token}", value);
+    
+    const headers: Record<string, string> = {
+      ...validation.headers,
+      [headerName]: headerValue,
+    };
+
+    const response = await fetch(validation.url, {
+      method,
+      headers,
+    });
+
+    if (response.ok) {
+      return { valid: true };
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      return { valid: false, error: "Invalid or expired credential" };
+    }
+
+    // Other 4xx errors might be permission-related but credential is valid
+    if (response.status >= 400 && response.status < 500) {
+      return { valid: true };
     }
 
     return { valid: false, error: `API returned status ${response.status}` };

@@ -1,5 +1,8 @@
 import vm from 'vm';
-import { getCredential, Provider, PROVIDERS } from '@/lib/credentials';
+import fs from 'fs';
+import path from 'path';
+import { getCredentialByProvider, isBuiltInProvider } from '@/lib/credentials';
+import { FetchConfig } from '@/lib/db';
 
 export interface ServerExecutorParams {
   [key: string]: unknown;
@@ -9,6 +12,18 @@ export interface ServerExecutorResult {
   data: unknown;
   error: string | null;
 }
+
+export interface ServerExecutorOptions {
+  params?: ServerExecutorParams;
+  timeout?: number;
+  fetchConfig?: FetchConfig;
+}
+
+// Allowed cache paths (for security - only allow specific directories)
+const ALLOWED_CACHE_DIRS = [
+  '/tmp',
+  process.env.HOME ? path.join(process.env.HOME, '.glance', 'cache') : null,
+].filter(Boolean) as string[];
 
 // Dangerous patterns that should be blocked in server code
 const DANGEROUS_PATTERNS = [
@@ -61,14 +76,56 @@ export function validateServerCode(code: string): { valid: boolean; error?: stri
 
 /**
  * Create a safe getCredential function for the sandbox
+ * Now supports both built-in and custom providers
  */
 function createSafeGetCredential() {
   return async (provider: string): Promise<string | null> => {
-    // Validate that the provider is known
-    if (!(provider in PROVIDERS)) {
-      throw new Error(`Unknown provider: ${provider}`);
+    // For built-in providers, validate they exist
+    if (isBuiltInProvider(provider)) {
+      return getCredentialByProvider(provider);
     }
-    return getCredential(provider as Provider);
+    // For custom providers, just try to get the credential
+    // Widget packages can define custom credentials
+    return getCredentialByProvider(provider);
+  };
+}
+
+/**
+ * Check if a path is within allowed cache directories
+ */
+function isPathAllowed(filePath: string, allowedCachePath?: string): boolean {
+  const normalizedPath = path.normalize(filePath);
+  
+  // If a specific cache path is provided (from widget's fetch config), check against it
+  if (allowedCachePath) {
+    const normalizedAllowed = path.normalize(allowedCachePath);
+    return normalizedPath === normalizedAllowed;
+  }
+  
+  // Otherwise check against allowed directories
+  return ALLOWED_CACHE_DIRS.some(dir => normalizedPath.startsWith(dir + path.sep) || normalizedPath.startsWith(dir));
+}
+
+/**
+ * Create a safe readCacheFile function for the sandbox
+ * Only allows reading from specified cache paths in /tmp
+ */
+function createSafeReadCacheFile() {
+  return async (filePath: string): Promise<string | null> => {
+    // Validate the path is allowed (only /tmp paths)
+    if (!isPathAllowed(filePath)) {
+      throw new Error(`Cache path not allowed: ${filePath}. Only paths in /tmp are permitted.`);
+    }
+
+    try {
+      if (!fs.existsSync(filePath)) {
+        return null;
+      }
+      return fs.readFileSync(filePath, 'utf8');
+    } catch (error) {
+      console.error('[server-code] Failed to read cache file:', error);
+      return null;
+    }
   };
 }
 
@@ -76,14 +133,14 @@ function createSafeGetCredential() {
  * Execute server-side code in a VM sandbox
  *
  * @param serverCode - The JavaScript code to execute (must return a value or use async/await)
- * @param params - Parameters passed to the code
- * @param timeout - Execution timeout in milliseconds (default 5000)
+ * @param options - Execution options including params, timeout, and fetchConfig
  */
 export async function executeServerCode(
   serverCode: string,
-  params: ServerExecutorParams = {},
-  timeout: number = 5000
+  options: ServerExecutorOptions = {}
 ): Promise<ServerExecutorResult> {
+  const { params = {}, timeout = 5000 } = options;
+
   // Validate patterns first
   const validation = validateServerCode(serverCode);
   if (!validation.valid) {
@@ -135,8 +192,11 @@ export async function executeServerCode(
       // Network access (sandboxed by nature - can only make HTTP requests)
       fetch,
 
-      // Credential access (safe wrapper)
+      // Credential access (safe wrapper - supports both built-in and custom providers)
       getCredential: createSafeGetCredential(),
+
+      // Cache file access (safe wrapper - only allows /tmp paths)
+      readCacheFile: createSafeReadCacheFile(),
 
       // Params from the widget
       params,
