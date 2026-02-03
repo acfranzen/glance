@@ -13,7 +13,7 @@ interface ClaudeMaxUsageData {
     percentUsed: number;
     resetsAt: string;
   };
-  weekSonnet: {
+  weekOpus: {
     percentUsed: number;
     resetsAt: string;
   };
@@ -210,18 +210,18 @@ export function ClaudeMaxUsageWidget({ widget }: ClaudeMaxUsageWidgetProps) {
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Week (Sonnet)</span>
             <span className="text-xs font-semibold text-foreground">
-              {data.weekSonnet.percentUsed}%
+              {data.weekOpus.percentUsed}%
             </span>
           </div>
           <div className="h-1.5 bg-muted rounded-full overflow-hidden">
             <div
-              className={`h-full ${getProgressColor(data.weekSonnet.percentUsed)} transition-all duration-500`}
-              style={{ width: `${Math.min(data.weekSonnet.percentUsed, 100)}%` }}
+              className={`h-full ${getProgressColor(data.weekOpus.percentUsed)} transition-all duration-500`}
+              style={{ width: `${Math.min(data.weekOpus.percentUsed, 100)}%` }}
             />
           </div>
-          {data.weekSonnet.resetsAt && (
+          {data.weekOpus.resetsAt && (
             <div className="text-[10px] text-muted-foreground">
-              Resets {data.weekSonnet.resetsAt}
+              Resets {data.weekOpus.resetsAt}
             </div>
           )}
         </div>
