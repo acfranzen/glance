@@ -2368,7 +2368,7 @@ When importing a widget package:
 Export a widget as a shareable string:
 
 ```http
-GET /api/custom-widgets/{slug}/export
+GET /api/widget-packages/{slug}
 Authorization: Bearer <token>
 ```
 

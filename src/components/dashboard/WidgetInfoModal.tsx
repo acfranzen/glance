@@ -9,10 +9,10 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { 
-  Clock, Database, Key, Settings, Code, CheckCircle, XCircle, 
+import {
+  Clock, Database, Key, Settings, Code, CheckCircle, XCircle,
   FileText, User, Calendar, RefreshCw, ExternalLink, Copy,
-  ChevronDown, ChevronUp, Zap, FileCode, Server, Webhook, Bot
+  ChevronDown, ChevronUp, Zap, Server, Webhook, Bot
 } from 'lucide-react';
 
 interface WidgetInfoModalProps {
@@ -44,8 +44,7 @@ interface SetupInfo {
 }
 
 interface FetchInfo {
-  type: 'server_code' | 'cache_file' | 'webhook' | 'agent_refresh';
-  cache_path?: string;
+  type: 'server_code' | 'webhook' | 'agent_refresh';
   refresh_command?: string;
   webhook_path?: string;
 }
@@ -191,7 +190,6 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
   const FetchTypeIcon = ({ type }: { type: string }) => {
     switch (type) {
       case 'server_code': return <Server className="h-4 w-4" />;
-      case 'cache_file': return <FileCode className="h-4 w-4" />;
       case 'webhook': return <Webhook className="h-4 w-4" />;
       case 'agent_refresh': return <Bot className="h-4 w-4" />;
       default: return <Database className="h-4 w-4" />;
@@ -386,26 +384,15 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
                   <div className="flex items-center gap-2 mb-2">
                     <FetchTypeIcon type={info.fetch?.type || 'server_code'} />
                     <span className="font-medium">
-                      {info.fetch?.type === 'cache_file' && 'File Cache'}
                       {info.fetch?.type === 'webhook' && 'Webhook Push'}
                       {info.fetch?.type === 'agent_refresh' && 'Agent Refresh'}
                       {(!info.fetch?.type || info.fetch?.type === 'server_code') && 'Server Code'}
                     </span>
                   </div>
-                  
+
                   <div className="text-xs text-muted-foreground space-y-1">
                     {(!info.fetch?.type || info.fetch?.type === 'server_code') && (
                       <p>Executes server-side code to fetch data from external APIs on each refresh.</p>
-                    )}
-                    {info.fetch?.type === 'cache_file' && (
-                      <>
-                        <p>Reads data from a local cache file. An external process (like OpenClaw) must populate this file.</p>
-                        {info.fetch.cache_path && (
-                          <div className="font-mono bg-secondary/50 px-2 py-1 rounded mt-2">
-                            {info.fetch.cache_path}
-                          </div>
-                        )}
-                      </>
                     )}
                     {info.fetch?.type === 'agent_refresh' && (
                       <>

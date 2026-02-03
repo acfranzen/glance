@@ -108,17 +108,15 @@ function isPathAllowed(filePath: string, allowedCachePath?: string): boolean {
 
 /**
  * Create a safe readCacheFile function for the sandbox
- * Only allows reading from specified cache paths
+ * Only allows reading from specified cache paths in /tmp
  */
-function createSafeReadCacheFile(fetchConfig?: FetchConfig) {
+function createSafeReadCacheFile() {
   return async (filePath: string): Promise<string | null> => {
-    // Validate the path is allowed
-    const allowedPath = fetchConfig?.type === 'cache_file' ? fetchConfig.cache_path : undefined;
-    
-    if (!isPathAllowed(filePath, allowedPath)) {
-      throw new Error(`Cache path not allowed: ${filePath}. Only paths in /tmp or matching the widget's fetch.cache_path are permitted.`);
+    // Validate the path is allowed (only /tmp paths)
+    if (!isPathAllowed(filePath)) {
+      throw new Error(`Cache path not allowed: ${filePath}. Only paths in /tmp are permitted.`);
     }
-    
+
     try {
       if (!fs.existsSync(filePath)) {
         return null;
@@ -197,8 +195,8 @@ export async function executeServerCode(
       // Credential access (safe wrapper - supports both built-in and custom providers)
       getCredential: createSafeGetCredential(),
 
-      // Cache file access (safe wrapper - only allows specified paths)
-      readCacheFile: createSafeReadCacheFile(fetchConfig),
+      // Cache file access (safe wrapper - only allows /tmp paths)
+      readCacheFile: createSafeReadCacheFile(),
 
       // Params from the widget
       params,

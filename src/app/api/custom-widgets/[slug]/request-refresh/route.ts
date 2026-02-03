@@ -2,14 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-import { getCustomWidgetBySlug } from '@/lib/db';
-import Database from 'better-sqlite3';
-import path from 'path';
-
-const dbPath = path.join(process.cwd(), 'data', 'glance.db');
+import { validateAuthOrInternal } from '@/lib/auth';
+import { getCustomWidgetBySlug, getDatabase } from '@/lib/db';
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
+}
+
+// Ensure refresh_requests table exists
+function ensureRefreshRequestsTable(): void {
+  const db = getDatabase();
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS widget_refresh_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      widget_slug TEXT NOT NULL,
+      requested_at TEXT NOT NULL,
+      processed_at TEXT,
+      UNIQUE(widget_slug, requested_at)
+    )
+  `);
 }
 
 // POST /api/custom-widgets/[slug]/request-refresh
@@ -18,6 +29,11 @@ export async function POST(
   request: NextRequest,
   context: RouteContext
 ) {
+  const auth = validateAuthOrInternal(request);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+
   try {
     const { slug } = await context.params;
     const widget = getCustomWidgetBySlug(slug);
@@ -38,33 +54,20 @@ export async function POST(
       );
     }
 
-    // Store the refresh request
-    const db = new Database(dbPath);
+    // Ensure table exists and insert the refresh request
+    ensureRefreshRequestsTable();
+    const db = getDatabase();
     const now = new Date().toISOString();
-    
-    // Create refresh_requests table if it doesn't exist
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS widget_refresh_requests (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        widget_slug TEXT NOT NULL,
-        requested_at TEXT NOT NULL,
-        processed_at TEXT,
-        UNIQUE(widget_slug, requested_at)
-      )
-    `);
 
-    // Insert the refresh request
     db.prepare(`
       INSERT INTO widget_refresh_requests (widget_slug, requested_at)
       VALUES (?, ?)
     `).run(slug, now);
 
-    db.close();
-
     // Try to wake the OpenClaw agent if gateway URL is configured
     const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL;
     const gatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN;
-    
+
     if (gatewayUrl && gatewayToken) {
       try {
         await fetch(`${gatewayUrl}/api/cron/wake`, {
@@ -106,33 +109,34 @@ export async function GET(
   request: NextRequest,
   context: RouteContext
 ) {
+  const auth = validateAuthOrInternal(request);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+
   try {
     const { slug } = await context.params;
-    
-    const db = new Database(dbPath);
-    
+    const db = getDatabase();
+
     // Check if table exists
     const tableExists = db.prepare(`
       SELECT name FROM sqlite_master WHERE type='table' AND name='widget_refresh_requests'
     `).get();
 
     if (!tableExists) {
-      db.close();
       return NextResponse.json({ pending: false });
     }
 
     // Get unprocessed refresh requests from last 5 minutes
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const pending = db.prepare(`
-      SELECT * FROM widget_refresh_requests 
-      WHERE widget_slug = ? 
-        AND processed_at IS NULL 
+      SELECT * FROM widget_refresh_requests
+      WHERE widget_slug = ?
+        AND processed_at IS NULL
         AND requested_at > ?
       ORDER BY requested_at DESC
       LIMIT 1
     `).get(slug, fiveMinutesAgo);
-
-    db.close();
 
     return NextResponse.json({
       pending: !!pending,
@@ -154,20 +158,22 @@ export async function DELETE(
   request: NextRequest,
   context: RouteContext
 ) {
+  const auth = validateAuthOrInternal(request);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+
   try {
     const { slug } = await context.params;
-    
-    const db = new Database(dbPath);
+    const db = getDatabase();
     const now = new Date().toISOString();
-    
+
     // Mark all pending requests as processed
     db.prepare(`
-      UPDATE widget_refresh_requests 
+      UPDATE widget_refresh_requests
       SET processed_at = ?
       WHERE widget_slug = ? AND processed_at IS NULL
     `).run(now, slug);
-
-    db.close();
 
     return NextResponse.json({ success: true });
 

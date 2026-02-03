@@ -105,7 +105,7 @@ The `ClaudeMaxUsageWidget` component automatically:
 
 ## Widget Package Configuration
 
-This widget demonstrates the `cache_file` fetch type and `local_software` credential type. Here's how it would be configured for sharing as a widget package:
+This widget demonstrates the `agent_refresh` fetch type and `local_software` credential type. Here's how it would be configured for sharing as a widget package:
 
 ### Credentials
 
@@ -186,8 +186,11 @@ The setup is complete when `/tmp/claude-usage-cache.json` exists and contains va
 ```json
 {
   "fetch": {
-    "type": "cache_file",
-    "cache_path": "/tmp/claude-usage-cache.json"
+    "type": "agent_refresh",
+    "schedule": "*/10 * * * *",
+    "instructions": "Run the PTY capture script and POST results to /api/custom-widgets/claude-max-usage/cache",
+    "expected_freshness_seconds": 600,
+    "max_staleness_seconds": 1800
   }
 }
 ```
@@ -207,9 +210,7 @@ When exported, this widget's package would include:
     "author": "Glance Team"
   },
   "widget": {
-    "source_code": "function Widget() { ... }",
-    "server_code": "const cached = await readCacheFile('/tmp/claude-usage-cache.json'); ...",
-    "server_code_enabled": true,
+    "source_code": "function Widget({ serverData }) { ... }",
     "default_size": { "w": 4, "h": 3 },
     "min_size": { "w": 3, "h": 2 },
     "refresh_interval": 300
@@ -234,8 +235,16 @@ When exported, this widget's package would include:
     "estimated_time": "5 minutes"
   },
   "fetch": {
-    "type": "cache_file",
-    "cache_path": "/tmp/claude-usage-cache.json"
+    "type": "agent_refresh",
+    "schedule": "*/10 * * * *",
+    "instructions": "Run PTY capture script and POST to cache endpoint",
+    "expected_freshness_seconds": 600,
+    "max_staleness_seconds": 1800
+  },
+  "cache": {
+    "ttl_seconds": 600,
+    "max_staleness_seconds": 1800,
+    "on_error": "use_stale"
   }
 }
 ```
@@ -243,5 +252,5 @@ When exported, this widget's package would include:
 This configuration allows OpenClaw to:
 1. Check if Claude CLI is installed
 2. Follow the agent_skill instructions to set up the capture script
-3. Verify setup by checking if the cache file exists
-4. Read usage data from the cache file via `readCacheFile()`
+3. On the cron schedule, run the capture script and POST data to the cache endpoint
+4. Widget reads cached data via the execute endpoint

@@ -389,7 +389,7 @@ Content-Type: application/json
 ### Export
 
 ```http
-GET /api/custom-widgets/{slug}/export
+GET /api/widget-packages/{slug}
 ```
 
 Returns: `{ "package": "!GW1!eJxVj8EKwj..." }`
