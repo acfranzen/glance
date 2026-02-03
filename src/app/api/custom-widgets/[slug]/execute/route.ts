@@ -76,7 +76,11 @@ export async function POST(
     }
 
     // Execute the server code
-    const result = await executeServerCode(widget.server_code, params, 5000);
+    const result = await executeServerCode(widget.server_code, {
+      params,
+      timeout: 5000,
+      fetchConfig: widget.fetch,
+    });
 
     if (result.error) {
       return NextResponse.json(

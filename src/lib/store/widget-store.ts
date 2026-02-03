@@ -31,6 +31,7 @@ interface WidgetState {
 
 interface WidgetActions {
   initialize: () => Promise<void>;
+  refreshWidgets: () => Promise<void>;
   setEditing: (editing: boolean) => void;
   addWidget: (type: WidgetType, title?: string) => Promise<void>;
   addCustomWidget: (customWidgetId: string, title: string, defaultSize?: { w: number; h: number }) => Promise<void>;
@@ -86,6 +87,38 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
     } catch (error) {
       console.error('Failed to initialize widgets:', error);
       set({ isLoading: false, initialized: true });
+    }
+  },
+
+  refreshWidgets: async () => {
+    set({ isLoading: true });
+
+    try {
+      const response = await fetch('/api/widgets');
+      if (!response.ok) throw new Error('Failed to fetch widgets');
+      
+      const data = await response.json();
+      const widgets: Widget[] = data.widgets || [];
+      
+      // Build layout from widget positions
+      const layout: LayoutItem[] = widgets.map((w: Widget) => ({
+        i: w.id,
+        x: w.position?.x || 0,
+        y: w.position?.y || 0,
+        w: w.position?.w || DEFAULT_SIZES[w.type]?.w || 3,
+        h: w.position?.h || DEFAULT_SIZES[w.type]?.h || 2,
+        minW: DEFAULT_SIZES[w.type]?.minW || 2,
+        minH: DEFAULT_SIZES[w.type]?.minH || 2,
+      }));
+
+      set({
+        widgets,
+        layout,
+        isLoading: false,
+      });
+    } catch (error) {
+      console.error('Failed to refresh widgets:', error);
+      set({ isLoading: false });
     }
   },
 

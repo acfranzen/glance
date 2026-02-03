@@ -6,6 +6,9 @@ import { useWidgetStore } from '@/lib/store/widget-store';
 import { ClaudeMaxUsageWidget } from '@/components/widgets/ClaudeMaxUsageWidget';
 import { DynamicWidgetLoader } from '@/components/widgets/DynamicWidget';
 import { WidgetContainer } from '@/components/widgets/WidgetContainer';
+import { WidgetExportModal } from './WidgetExportModal';
+import { Button } from '@/components/ui/button';
+import { Download } from 'lucide-react';
 import type { Widget } from '@/types/api';
 
 // Dynamic import to avoid SSR issues with react-grid-layout
@@ -30,6 +33,11 @@ export function DashboardGrid() {
   const [width, setWidth] = useState(1200);
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [exportModal, setExportModal] = useState<{ open: boolean; slug: string; name: string }>({
+    open: false,
+    slug: '',
+    name: '',
+  });
 
   useEffect(() => {
     initialize();
@@ -91,6 +99,21 @@ export function DashboardGrid() {
           title={widget.title}
           isEditing={isEditing}
           onRemove={() => handleRemoveWidget(widget.id)}
+          action={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setExportModal({
+                open: true,
+                slug: widget.custom_widget_id!,
+                name: widget.title,
+              })}
+              title="Export widget"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </Button>
+          }
         >
           <DynamicWidgetLoader
             customWidgetId={widget.custom_widget_id}
@@ -171,27 +194,36 @@ export function DashboardGrid() {
       }));
 
   return (
-    <div id="dashboard-container" className="w-full">
-      <GridLayout
-        className="layout"
-        layout={responsiveLayout}
-        cols={isMobile ? 1 : 12}
-        rowHeight={100}
-        width={width}
-        onLayoutChange={handleLayoutChange}
-        isDraggable={isEditing}
-        isResizable={isEditing}
-        margin={[16, 16]}
-        containerPadding={[0, 0]}
-        useCSSTransforms={true}
-        compactType="vertical"
-      >
-        {widgets.map((widget) => (
-          <div key={widget.id} className="bg-card rounded-lg border shadow-sm overflow-hidden">
-            {renderWidget(widget)}
-          </div>
-        ))}
-      </GridLayout>
-    </div>
+    <>
+      <div id="dashboard-container" className="w-full">
+        <GridLayout
+          className="layout"
+          layout={responsiveLayout}
+          cols={isMobile ? 1 : 12}
+          rowHeight={100}
+          width={width}
+          onLayoutChange={handleLayoutChange}
+          isDraggable={isEditing}
+          isResizable={isEditing}
+          margin={[16, 16]}
+          containerPadding={[0, 0]}
+          useCSSTransforms={true}
+          compactType="vertical"
+        >
+          {widgets.map((widget) => (
+            <div key={widget.id} className="bg-card rounded-lg border shadow-sm overflow-hidden">
+              {renderWidget(widget)}
+            </div>
+          ))}
+        </GridLayout>
+      </div>
+
+      <WidgetExportModal
+        open={exportModal.open}
+        onOpenChange={(open) => setExportModal({ ...exportModal, open })}
+        widgetSlug={exportModal.slug}
+        widgetName={exportModal.name}
+      />
+    </>
   );
 }

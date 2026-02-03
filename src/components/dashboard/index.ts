@@ -3,3 +3,8 @@ export { DashboardHeader } from "./DashboardHeader";
 export { AddWidgetModal } from "./AddWidgetModal";
 export { OnboardingModal } from "./OnboardingModal";
 export { ThemeImportModal } from "./ThemeImportModal";
+export { CredentialsModal } from "./CredentialsModal";
+export { CredentialSetupWizard } from "./CredentialSetupWizard";
+export { SetupWizard } from "./SetupWizard";
+export { WidgetExportModal } from "./WidgetExportModal";
+export { WidgetImportModal } from "./WidgetImportModal";

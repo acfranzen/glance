@@ -8,7 +8,10 @@ import {
   getAllCustomWidgets,
   getCustomWidgetBySlug,
   createCustomWidget,
-  getCustomWidget
+  getCustomWidget,
+  CredentialRequirement,
+  SetupConfig,
+  FetchConfig,
 } from '@/lib/db';
 import { validateServerCode } from '@/lib/widget-sdk/server-executor';
 
@@ -119,6 +122,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Parse widget package fields
+    const credentials: CredentialRequirement[] = Array.isArray(body.credentials)
+      ? body.credentials
+      : [];
+    const setup: SetupConfig | null = body.setup && typeof body.setup === 'object'
+      ? body.setup
+      : null;
+    const fetch: FetchConfig = body.fetch && typeof body.fetch === 'object'
+      ? body.fetch
+      : { type: 'server_code' };
+    const author: string | null = typeof body.author === 'string'
+      ? body.author
+      : null;
+
     // Generate ID
     const id = `cw_${nanoid(12)}`;
 
@@ -136,7 +153,11 @@ export async function POST(request: NextRequest) {
       refreshInterval,
       true, // enabled by default
       serverCode,
-      serverCodeEnabled
+      serverCodeEnabled,
+      credentials,
+      setup,
+      fetch,
+      author
     );
 
     // Fetch and return the created widget

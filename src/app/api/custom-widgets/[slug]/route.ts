@@ -7,7 +7,10 @@ import {
   getCustomWidget,
   getCustomWidgetBySlug,
   updateCustomWidget,
-  deleteCustomWidget
+  deleteCustomWidget,
+  CredentialRequirement,
+  SetupConfig,
+  FetchConfig,
 } from '@/lib/db';
 import { validateServerCode } from '@/lib/widget-sdk/server-executor';
 
@@ -93,6 +96,20 @@ export async function PATCH(
     const enabled = body.enabled !== undefined ? body.enabled : existing.enabled;
     const serverCode = body.server_code !== undefined ? body.server_code : existing.server_code;
     const serverCodeEnabled = body.server_code_enabled !== undefined ? body.server_code_enabled : existing.server_code_enabled;
+    
+    // Widget package fields
+    const credentials: CredentialRequirement[] = body.credentials !== undefined
+      ? (Array.isArray(body.credentials) ? body.credentials : [])
+      : existing.credentials;
+    const setup: SetupConfig | null = body.setup !== undefined
+      ? (body.setup && typeof body.setup === 'object' ? body.setup : null)
+      : existing.setup;
+    const fetch: FetchConfig = body.fetch !== undefined
+      ? (body.fetch && typeof body.fetch === 'object' ? body.fetch : { type: 'server_code' })
+      : existing.fetch;
+    const author: string | null = body.author !== undefined
+      ? (typeof body.author === 'string' ? body.author : null)
+      : existing.author;
 
     // Validate server code if provided and enabled
     if (serverCode && serverCodeEnabled) {
@@ -118,7 +135,11 @@ export async function PATCH(
       refreshInterval,
       enabled,
       serverCode,
-      serverCodeEnabled
+      serverCodeEnabled,
+      credentials,
+      setup,
+      fetch,
+      author
     );
 
     // Fetch and return the updated widget

@@ -109,6 +109,20 @@ function getDb(): Database.Database {
     }
   }
 
+  // Migration: Add widget package columns (credentials, setup, fetch) to custom_widgets
+  {
+    const tableInfo = _db
+      .prepare("PRAGMA table_info(custom_widgets)")
+      .all() as Array<{ name: string }>;
+    const hasCredentials = tableInfo.some((col) => col.name === "credentials");
+    if (!hasCredentials) {
+      _db.exec(`ALTER TABLE custom_widgets ADD COLUMN credentials TEXT DEFAULT '[]'`);
+      _db.exec(`ALTER TABLE custom_widgets ADD COLUMN setup TEXT`);
+      _db.exec(`ALTER TABLE custom_widgets ADD COLUMN fetch TEXT DEFAULT '{"type":"server_code"}'`);
+      _db.exec(`ALTER TABLE custom_widgets ADD COLUMN author TEXT`);
+    }
+  }
+
   // Create custom_widgets table and related indexes (after migration)
   _db.exec(`
     -- Custom widget definitions (JSX code stored here)
@@ -146,6 +160,19 @@ function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_custom_widgets_slug ON custom_widgets(slug);
     CREATE INDEX IF NOT EXISTS idx_widgets_custom_widget_id ON widgets(custom_widget_id);
     CREATE INDEX IF NOT EXISTS idx_data_providers_slug ON data_providers(slug);
+
+    -- Widget setups tracking (for tracking local setup completion)
+    CREATE TABLE IF NOT EXISTS widget_setups (
+      id TEXT PRIMARY KEY,
+      widget_slug TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'not_configured',
+      verified_at TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_widget_setups_slug ON widget_setups(widget_slug);
   `);
 
   return _db;
@@ -204,6 +231,21 @@ export interface CustomWidgetRow {
   enabled: number;
   server_code: string | null;
   server_code_enabled: number;
+  // Widget package fields
+  credentials: string;
+  setup: string | null;
+  fetch: string;
+  author: string | null;
+}
+
+export interface WidgetSetupRow {
+  id: string;
+  widget_slug: string;
+  status: string;
+  verified_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DataProviderRow {
@@ -291,15 +333,25 @@ function createStatements(db: Database.Database) {
       "SELECT * FROM custom_widgets WHERE slug = ?",
     ),
     insertCustomWidget: db.prepare(`
-      INSERT INTO custom_widgets (id, name, slug, description, source_code, compiled_code, default_size, min_size, data_providers, refresh_interval, enabled, server_code, server_code_enabled)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO custom_widgets (id, name, slug, description, source_code, compiled_code, default_size, min_size, data_providers, refresh_interval, enabled, server_code, server_code_enabled, credentials, setup, fetch, author)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `),
     updateCustomWidget: db.prepare(`
       UPDATE custom_widgets
-      SET name = ?, description = ?, source_code = ?, compiled_code = ?, default_size = ?, min_size = ?, data_providers = ?, refresh_interval = ?, enabled = ?, server_code = ?, server_code_enabled = ?, updated_at = datetime('now')
+      SET name = ?, description = ?, source_code = ?, compiled_code = ?, default_size = ?, min_size = ?, data_providers = ?, refresh_interval = ?, enabled = ?, server_code = ?, server_code_enabled = ?, credentials = ?, setup = ?, fetch = ?, author = ?, updated_at = datetime('now')
       WHERE id = ?
     `),
     deleteCustomWidget: db.prepare("DELETE FROM custom_widgets WHERE id = ?"),
+
+    // Widget Setups
+    getWidgetSetup: db.prepare("SELECT * FROM widget_setups WHERE widget_slug = ?"),
+    getAllWidgetSetups: db.prepare("SELECT * FROM widget_setups ORDER BY updated_at DESC"),
+    upsertWidgetSetup: db.prepare(`
+      INSERT INTO widget_setups (id, widget_slug, status, verified_at, notes, updated_at)
+      VALUES (?, ?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(id) DO UPDATE SET status = ?, verified_at = ?, notes = ?, updated_at = datetime('now')
+    `),
+    deleteWidgetSetup: db.prepare("DELETE FROM widget_setups WHERE id = ?"),
 
     // Data Providers
     getAllDataProviders: db.prepare(
@@ -480,6 +532,58 @@ export function updateLayout(
   transaction(layout);
 }
 
+// Widget Package Types
+export interface CredentialRequirement {
+  id: string;
+  type: "api_key" | "local_software" | "oauth";
+  name: string;
+  description: string;
+  // For api_key
+  obtain_url?: string;
+  obtain_instructions?: string;
+  required_scopes?: string[];
+  validation?: {
+    url: string;
+    method?: "GET" | "POST";
+    headers?: Record<string, string>;
+    auth_header?: string;
+  };
+  // For local_software
+  check_command?: string;
+  install_url?: string;
+  install_instructions?: string;
+}
+
+export interface SetupConfig {
+  description: string;
+  agent_skill: string;
+  verification: {
+    type: "file_exists" | "command_succeeds" | "endpoint_responds";
+    target: string;
+  };
+  idempotent: boolean;
+  estimated_time?: string;
+}
+
+export interface FetchConfig {
+  type: "server_code" | "cache_file" | "webhook" | "agent_refresh";
+  cache_path?: string;
+  webhook_path?: string;
+  webhook_setup_instructions?: string;
+  refresh_command?: string;
+  refresh_interval?: number;
+}
+
+export interface WidgetSetup {
+  id: string;
+  widget_slug: string;
+  status: "not_configured" | "configured" | "failed";
+  verified_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // Custom Widget functions
 export interface CustomWidget {
   id: string;
@@ -497,6 +601,11 @@ export interface CustomWidget {
   enabled: boolean;
   server_code: string | null;
   server_code_enabled: boolean;
+  // Widget package fields
+  credentials: CredentialRequirement[];
+  setup: SetupConfig | null;
+  fetch: FetchConfig;
+  author: string | null;
 }
 
 function rowToCustomWidget(row: CustomWidgetRow): CustomWidget {
@@ -516,6 +625,23 @@ function rowToCustomWidget(row: CustomWidgetRow): CustomWidget {
     enabled: row.enabled === 1,
     server_code: row.server_code,
     server_code_enabled: row.server_code_enabled === 1,
+    // Widget package fields
+    credentials: row.credentials ? JSON.parse(row.credentials) : [],
+    setup: row.setup ? JSON.parse(row.setup) : null,
+    fetch: row.fetch ? JSON.parse(row.fetch) : { type: "server_code" },
+    author: row.author,
+  };
+}
+
+function rowToWidgetSetup(row: WidgetSetupRow): WidgetSetup {
+  return {
+    id: row.id,
+    widget_slug: row.widget_slug,
+    status: row.status as WidgetSetup["status"],
+    verified_at: row.verified_at,
+    notes: row.notes,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
   };
 }
 
@@ -555,6 +681,10 @@ export function createCustomWidget(
   enabled: boolean = true,
   serverCode: string | null = null,
   serverCodeEnabled: boolean = false,
+  credentials: CredentialRequirement[] = [],
+  setup: SetupConfig | null = null,
+  fetch: FetchConfig = { type: "server_code" },
+  author: string | null = null,
 ): void {
   getStmts().insertCustomWidget.run(
     id,
@@ -570,6 +700,10 @@ export function createCustomWidget(
     enabled ? 1 : 0,
     serverCode,
     serverCodeEnabled ? 1 : 0,
+    JSON.stringify(credentials),
+    setup ? JSON.stringify(setup) : null,
+    JSON.stringify(fetch),
+    author,
   );
   logEvent("custom_widget_created", { id, name, slug });
 }
@@ -587,6 +721,10 @@ export function updateCustomWidget(
   enabled: boolean,
   serverCode: string | null = null,
   serverCodeEnabled: boolean = false,
+  credentials: CredentialRequirement[] = [],
+  setup: SetupConfig | null = null,
+  fetch: FetchConfig = { type: "server_code" },
+  author: string | null = null,
 ): void {
   getStmts().updateCustomWidget.run(
     name,
@@ -600,6 +738,10 @@ export function updateCustomWidget(
     enabled ? 1 : 0,
     serverCode,
     serverCodeEnabled ? 1 : 0,
+    JSON.stringify(credentials),
+    setup ? JSON.stringify(setup) : null,
+    JSON.stringify(fetch),
+    author,
     id,
   );
   logEvent("custom_widget_updated", { id, name });
@@ -702,6 +844,42 @@ export function updateDataProvider(
 export function deleteDataProvider(id: string): void {
   getStmts().deleteDataProvider.run(id);
   logEvent("data_provider_deleted", { id });
+}
+
+// Widget Setup functions
+export function getWidgetSetup(widgetSlug: string): WidgetSetup | undefined {
+  const row = getStmts().getWidgetSetup.get(widgetSlug) as WidgetSetupRow | undefined;
+  return row ? rowToWidgetSetup(row) : undefined;
+}
+
+export function getAllWidgetSetups(): WidgetSetup[] {
+  const rows = getStmts().getAllWidgetSetups.all() as WidgetSetupRow[];
+  return rows.map(rowToWidgetSetup);
+}
+
+export function upsertWidgetSetup(
+  id: string,
+  widgetSlug: string,
+  status: WidgetSetup["status"],
+  verifiedAt: string | null = null,
+  notes: string | null = null,
+): void {
+  getStmts().upsertWidgetSetup.run(
+    id,
+    widgetSlug,
+    status,
+    verifiedAt,
+    notes,
+    status,
+    verifiedAt,
+    notes,
+  );
+  logEvent("widget_setup_updated", { id, widgetSlug, status });
+}
+
+export function deleteWidgetSetup(id: string): void {
+  getStmts().deleteWidgetSetup.run(id);
+  logEvent("widget_setup_deleted", { id });
 }
 
 // Export getter for direct db access (use sparingly)
