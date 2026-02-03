@@ -224,10 +224,7 @@ export function DashboardGrid() {
           compactType="vertical"
         >
           {widgets.map((widget) => (
-            <div
-              key={widget.id}
-              className="bg-card rounded-lg border shadow-sm overflow-hidden min-w-0"
-            >
+            <div key={widget.id} className="h-full">
               {renderWidget(widget)}
             </div>
           ))}
