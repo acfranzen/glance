@@ -6,8 +6,16 @@ import { useWidgetStore } from "@/lib/store/widget-store";
 import { DynamicWidgetLoader } from "@/components/widgets/DynamicWidget";
 import { WidgetContainer } from "@/components/widgets/WidgetContainer";
 import { WidgetExportModal } from "./WidgetExportModal";
+import { WidgetAboutModal } from "./WidgetAboutModal";
+import { WidgetInfoModal } from "./WidgetInfoModal";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MoreVertical, Info, Settings, Download } from "lucide-react";
 import type { Widget } from "@/types/api";
 
 // Dynamic import to avoid SSR issues with react-grid-layout
@@ -41,6 +49,24 @@ export function DashboardGrid() {
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [exportModal, setExportModal] = useState<{
+    open: boolean;
+    slug: string;
+    name: string;
+  }>({
+    open: false,
+    slug: "",
+    name: "",
+  });
+  const [aboutModal, setAboutModal] = useState<{
+    open: boolean;
+    slug: string;
+    name: string;
+  }>({
+    open: false,
+    slug: "",
+    name: "",
+  });
+  const [settingsModal, setSettingsModal] = useState<{
     open: boolean;
     slug: string;
     name: string;
@@ -112,21 +138,56 @@ export function DashboardGrid() {
           isEditing={isEditing}
           onRemove={() => handleRemoveWidget(widget.id)}
           action={
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() =>
-                setExportModal({
-                  open: true,
-                  slug: widget.custom_widget_id!,
-                  name: widget.title,
-                })
-              }
-              title="Export widget"
-            >
-              <Download className="h-3.5 w-3.5" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  title="Widget options"
+                >
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() =>
+                    setAboutModal({
+                      open: true,
+                      slug: widget.custom_widget_id!,
+                      name: widget.title,
+                    })
+                  }
+                >
+                  <Info className="mr-2 h-4 w-4" />
+                  Widget Info
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    setSettingsModal({
+                      open: true,
+                      slug: widget.custom_widget_id!,
+                      name: widget.title,
+                    })
+                  }
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    setExportModal({
+                      open: true,
+                      slug: widget.custom_widget_id!,
+                      name: widget.title,
+                    })
+                  }
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           }
         >
           <DynamicWidgetLoader
@@ -234,6 +295,20 @@ export function DashboardGrid() {
         onOpenChange={(open) => setExportModal({ ...exportModal, open })}
         widgetSlug={exportModal.slug}
         widgetName={exportModal.name}
+      />
+
+      <WidgetAboutModal
+        open={aboutModal.open}
+        onOpenChange={(open) => setAboutModal({ ...aboutModal, open })}
+        widgetSlug={aboutModal.slug}
+        widgetName={aboutModal.name}
+      />
+
+      <WidgetInfoModal
+        open={settingsModal.open}
+        onOpenChange={(open) => setSettingsModal({ ...settingsModal, open })}
+        widgetSlug={settingsModal.slug}
+        widgetName={settingsModal.name}
       />
     </>
   );
