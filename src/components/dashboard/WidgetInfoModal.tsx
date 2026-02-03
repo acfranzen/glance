@@ -51,6 +51,8 @@ interface FetchInfo {
   type: 'server_code' | 'webhook' | 'agent_refresh';
   refresh_command?: string;
   webhook_path?: string;
+  instructions?: string;
+  schedule?: string;
 }
 
 interface WidgetInfo {
@@ -450,10 +452,26 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
                     {info.fetch?.type === 'agent_refresh' && (
                       <>
                         <p>OpenClaw periodically runs a command to refresh the data.</p>
+                        {info.fetch.schedule && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <Clock className="h-3 w-3" />
+                            <span>Schedule: <code className="bg-secondary/50 px-1 rounded">{info.fetch.schedule}</code></span>
+                          </div>
+                        )}
                         {info.fetch.refresh_command && (
                           <div className="font-mono bg-secondary/50 px-2 py-1 rounded mt-2">
                             $ {info.fetch.refresh_command}
                           </div>
+                        )}
+                        {info.fetch.instructions && (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer text-primary hover:underline font-medium">
+                              View agent instructions
+                            </summary>
+                            <pre className="mt-2 bg-secondary/50 p-3 rounded overflow-auto max-h-48 text-[11px] whitespace-pre-wrap font-mono">
+                              {info.fetch.instructions}
+                            </pre>
+                          </details>
                         )}
                       </>
                     )}
