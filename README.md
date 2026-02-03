@@ -266,6 +266,72 @@ ssh -L 3333:localhost:3333 user@your-server
 
 ---
 
+## 🔄 Running as a Service (macOS)
+
+Keep Glance running in the background — it will start automatically on login and restart if it crashes.
+
+### Quick Install
+
+```bash
+# From the glance directory
+./scripts/install-launchd.sh
+```
+
+That's it! Glance is now running as a persistent service.
+
+### What the Service Does
+
+- **Starts on login** — No need to manually run `pnpm dev`
+- **Restarts on crash** — If Glance exits unexpectedly, it comes back
+- **Survives terminal closes** — Close all terminals, dashboard keeps running
+- **Logs everything** — stdout/stderr go to `~/Library/Logs/glance/`
+
+### Service Commands
+
+```bash
+# Check if running
+launchctl list | grep glance
+
+# View logs
+tail -f ~/Library/Logs/glance/glance.log
+
+# Stop temporarily
+launchctl unload ~/Library/LaunchAgents/com.glance.dashboard.plist
+
+# Start again
+launchctl load ~/Library/LaunchAgents/com.glance.dashboard.plist
+
+# Uninstall completely
+./scripts/uninstall-launchd.sh
+```
+
+### Custom Install Location
+
+If Glance isn't in the default location, specify your path:
+
+```bash
+GLANCE_DIR=/path/to/your/glance ./scripts/install-launchd.sh
+```
+
+### Manual Development
+
+If you prefer running Glance manually (for development, debugging, etc.):
+
+```bash
+# Start with pnpm
+pnpm dev
+
+# Or npm
+npm run dev
+
+# Or with Docker
+docker compose up
+```
+
+The dashboard will be available at [http://localhost:3333](http://localhost:3333).
+
+---
+
 ## 🌐 OpenClaw Community
 
 Glance is built for the [OpenClaw](https://openclaw.ai) community. Find more skills at [clawhub.com](https://clawhub.com).
