@@ -59,9 +59,7 @@ export function DashboardGrid() {
     const updateWidth = () => {
       const container = document.getElementById("dashboard-container");
       if (container) {
-        // On mobile, use full container width with minimal adjustment
-        const isMobileView = window.innerWidth < 640;
-        setWidth(container.offsetWidth - (isMobileView ? 0 : 16));
+        setWidth(container.offsetWidth);
       }
       // Use 640px (sm breakpoint) for mobile detection
       setIsMobile(window.innerWidth < 640);
