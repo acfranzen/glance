@@ -12,6 +12,7 @@ import {
   CredentialRequirement,
   SetupConfig,
   FetchConfig,
+  CacheConfig,
 } from '@/lib/db';
 import { validateServerCode } from '@/lib/widget-sdk/server-executor';
 
@@ -132,6 +133,9 @@ export async function POST(request: NextRequest) {
     const fetch: FetchConfig = body.fetch && typeof body.fetch === 'object'
       ? body.fetch
       : { type: 'server_code' };
+    const cache: CacheConfig | null = body.cache && typeof body.cache === 'object'
+      ? body.cache
+      : null;
     const author: string | null = typeof body.author === 'string'
       ? body.author
       : null;
@@ -157,6 +161,7 @@ export async function POST(request: NextRequest) {
       credentials,
       setup,
       fetch,
+      cache,
       author
     );
 
