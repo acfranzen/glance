@@ -167,6 +167,12 @@ export interface UpdateWidgetRequest {
     w: number;
     h: number;
   };
+  mobilePosition?: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  };
   data_source?: {
     type: 'integration' | 'api' | 'static';
     integration?: string;
@@ -180,6 +186,12 @@ export interface Widget {
   title: string;
   config: Record<string, unknown>;
   position: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  };
+  mobilePosition?: {
     x: number;
     y: number;
     w: number;

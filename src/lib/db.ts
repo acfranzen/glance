@@ -95,6 +95,19 @@ function getDb(): Database.Database {
     }
   }
 
+  // Migration: Add mobile_position column for responsive layouts
+  {
+    const tableInfo = _db.prepare("PRAGMA table_info(widgets)").all() as Array<{
+      name: string;
+    }>;
+    const hasMobilePosition = tableInfo.some(
+      (col) => col.name === "mobile_position",
+    );
+    if (!hasMobilePosition) {
+      _db.exec(`ALTER TABLE widgets ADD COLUMN mobile_position TEXT`);
+    }
+  }
+
   // Create custom_widgets table FIRST (before migrations)
   _db.exec(`
     -- Custom widget definitions (JSX code stored here)
@@ -174,6 +187,7 @@ export interface WidgetRow {
   title: string;
   config: string;
   position: string;
+  mobile_position: string | null;
   data_source: string | null;
   data_cache: string | null;
   data_updated_at: string | null;

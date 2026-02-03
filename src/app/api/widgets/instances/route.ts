@@ -34,17 +34,32 @@ export async function GET(request: NextRequest) {
 
   try {
     const rows = getAllWidgets();
-    const widgets: Widget[] = rows.map((row) => ({
-      id: row.id,
-      type: row.type,
-      title: row.title,
-      config: JSON.parse(row.config),
-      position: JSON.parse(row.position),
-      data_source: row.data_source ? JSON.parse(row.data_source) : undefined,
-      custom_widget_id: (row as { custom_widget_id?: string }).custom_widget_id || undefined,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    }));
+    const widgets: Widget[] = rows.map((row, index) => {
+      const position = JSON.parse(row.position);
+      // Parse mobile position, or generate default if not set
+      let mobilePosition = row.mobile_position ? JSON.parse(row.mobile_position) : undefined;
+      if (!mobilePosition) {
+        // Default mobile layout: 2-col grid, stacked vertically
+        mobilePosition = {
+          x: 0,
+          y: index * 2,
+          w: 2,
+          h: Math.max(position.h, 2),
+        };
+      }
+      return {
+        id: row.id,
+        type: row.type,
+        title: row.title,
+        config: JSON.parse(row.config),
+        position,
+        mobilePosition,
+        data_source: row.data_source ? JSON.parse(row.data_source) : undefined,
+        custom_widget_id: (row as { custom_widget_id?: string }).custom_widget_id || undefined,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+    });
 
     return NextResponse.json({ widgets });
   } catch (error) {
