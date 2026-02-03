@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // Prevent static generation - this route requires runtime database access
 export const dynamic = 'force-dynamic';
 import { validateAuthOrInternal } from '@/lib/auth';
-import { getDataProviderBySlug, type DataProvider } from '@/lib/db';
+import { getDataProviderBySlug, getWidget, getCustomWidget, updateWidgetData, type DataProvider } from '@/lib/db';
 import { getCredentialValue, getCredential, Provider } from '@/lib/credentials';
 
 interface WidgetDataRequest {
@@ -15,6 +15,13 @@ interface WidgetDataRequest {
     method?: 'GET' | 'POST';
     body?: unknown;
   };
+}
+
+interface CachedData {
+  data: unknown;
+  provider: string;
+  fetchedAt: string;
+  endpoint: string;
 }
 
 // Build the full URL with parameter substitution
@@ -91,12 +98,26 @@ function buildHeaders(
   return headers;
 }
 
-// POST /api/widget-data - Proxy data requests with credential injection
+// Check if cached data is still fresh based on refresh_interval
+function isCacheFresh(dataUpdatedAt: string | null, refreshIntervalSeconds: number): boolean {
+  if (!dataUpdatedAt) return false;
+  
+  const cacheTime = new Date(dataUpdatedAt).getTime();
+  const now = Date.now();
+  const maxAgeMs = refreshIntervalSeconds * 1000;
+  
+  return (now - cacheTime) < maxAgeMs;
+}
+
+// POST /api/widget-data - Proxy data requests with credential injection and caching
 export async function POST(request: NextRequest) {
   const auth = validateAuthOrInternal(request);
   if (!auth.authorized) {
     return NextResponse.json({ error: auth.error }, { status: 401 });
   }
+
+  // Check for force refresh query param
+  const forceRefresh = request.nextUrl.searchParams.get('force') === 'true';
 
   try {
     const body: WidgetDataRequest = await request.json();
@@ -112,6 +133,35 @@ export async function POST(request: NextRequest) {
 
     if (!body.query?.endpoint) {
       return NextResponse.json({ error: 'query.endpoint is required' }, { status: 400 });
+    }
+
+    // Get the widget instance to check cache
+    const widget = getWidget(body.widget_id);
+    if (!widget) {
+      return NextResponse.json({ error: 'Widget not found' }, { status: 404 });
+    }
+
+    // Get refresh interval from custom widget definition (if it's a custom widget)
+    let refreshInterval = 300; // Default 5 minutes
+    if ((widget as { custom_widget_id?: string }).custom_widget_id) {
+      const customWidget = getCustomWidget((widget as { custom_widget_id?: string }).custom_widget_id!);
+      if (customWidget) {
+        refreshInterval = customWidget.refresh_interval;
+      }
+    }
+
+    // Check if we have fresh cached data (unless force refresh)
+    if (!forceRefresh && widget.data_cache && widget.data_updated_at) {
+      if (isCacheFresh(widget.data_updated_at, refreshInterval)) {
+        const cachedData = JSON.parse(widget.data_cache) as CachedData;
+        return NextResponse.json({
+          data: cachedData.data,
+          provider: cachedData.provider,
+          cached: true,
+          cachedAt: cachedData.fetchedAt,
+          timestamp: new Date().toISOString()
+        });
+      }
     }
 
     // Look up the provider by slug from database
@@ -192,11 +242,28 @@ export async function POST(request: NextRequest) {
       data = await response.text();
     }
 
+    const fetchedAt = new Date().toISOString();
+
+    // Cache the response
+    const cachePayload: CachedData = {
+      data,
+      provider: provider.slug,
+      fetchedAt,
+      endpoint: body.query.endpoint
+    };
+    
+    try {
+      updateWidgetData(body.widget_id, cachePayload);
+    } catch (cacheError) {
+      // Log but don't fail the request if caching fails
+      console.error('Failed to cache widget data:', cacheError);
+    }
+
     return NextResponse.json({ 
       data,
       provider: provider.slug,
       cached: false,
-      timestamp: new Date().toISOString()
+      timestamp: fetchedAt
     });
   } catch (error) {
     console.error('Widget data request failed:', error);

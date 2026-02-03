@@ -787,6 +787,124 @@ function Widget() {
 
 OpenClaw agents can read widget data to understand what's displayed on the dashboard and summarize it for users.
 
+### Data Caching
+
+Glance automatically caches widget data to reduce API calls and improve performance. The caching behavior is:
+
+1. **Cache on fetch:** When `POST /api/widget-data` fetches data from upstream, it automatically caches the response with metadata (`data`, `provider`, `fetchedAt`, `endpoint`).
+
+2. **Serve from cache when fresh:** Before hitting upstream, the endpoint checks if cached data exists and is still within the widget's `refresh_interval`. Fresh cached data is returned with `cached: true`.
+
+3. **Force refresh:** Add `?force=true` to bypass the cache and always fetch fresh data from upstream.
+
+**Request with force refresh:**
+```http
+POST /api/widget-data?force=true
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "widget_id": "widget_xyz789",
+  "provider": "github",
+  "query": { "endpoint": "/repos/owner/repo/pulls" }
+}
+```
+
+**Response when serving from cache:**
+```json
+{
+  "data": { "prs": [...] },
+  "provider": "github",
+  "cached": true,
+  "cachedAt": "2026-02-01T12:00:00.000Z",
+  "timestamp": "2026-02-01T12:05:00.000Z"
+}
+```
+
+**Response when fetching fresh:**
+```json
+{
+  "data": { "prs": [...] },
+  "provider": "github",
+  "cached": false,
+  "timestamp": "2026-02-01T12:05:00.000Z"
+}
+```
+
+### Read Cached Data (for Bot Integrations)
+
+Read the cached data for a widget without triggering an upstream fetch. Returns both bot-parseable widget data (with summaries) and cache metadata. This is useful for OpenClaw to query widget state during heartbeats.
+
+```http
+GET /api/widgets/:id/data
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "widget_id": "widget_xyz789",
+  "type": "custom",
+  "title": "GitHub PRs",
+  "updated_at": "2026-02-01T12:00:00.000Z",
+  "data": {
+    "prs": [
+      { "number": 42, "title": "Add new feature", "author": "octocat" }
+    ]
+  },
+  "summary": {
+    "narrative": "3 open PRs on github/glance",
+    "key_points": ["#42: Add new feature by octocat", "#41: Fix bug by dev"]
+  },
+  "cache": {
+    "cached": true,
+    "cachedAt": "2026-02-01T12:00:00.000Z",
+    "source": "github",
+    "endpoint": "/repos/owner/repo/pulls",
+    "stale": false,
+    "refreshInterval": 300,
+    "dataUpdatedAt": "2026-02-01 12:00:00"
+  }
+}
+```
+
+**Response fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `widget_id` | string | Widget instance ID |
+| `type` | string | Widget type (e.g., "custom", "clock", "weather") |
+| `title` | string | Widget display title |
+| `updated_at` | string | Last update timestamp |
+| `data` | any | The widget data payload |
+| `summary.narrative` | string | Human-readable summary of widget state |
+| `summary.key_points` | string[] | Key data points for quick parsing |
+| `cache.cached` | boolean | Whether data came from cache |
+| `cache.cachedAt` | string | ISO timestamp when data was fetched |
+| `cache.source` | string | Provider slug that supplied the data |
+| `cache.endpoint` | string | The API endpoint that was called |
+| `cache.stale` | boolean | True if cache is older than refresh_interval |
+| `cache.refreshInterval` | number | Widget's refresh interval in seconds |
+| `cache.dataUpdatedAt` | string | Database timestamp of last cache update |
+
+### Push Data to Widget
+
+Push data to a widget's cache (for bot-initiated updates).
+
+```http
+POST /api/widgets/:id/data
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "data": { "custom": "payload" },
+  "provider": "my-source",
+  "fetchedAt": "2026-02-01T12:00:00.000Z",
+  "endpoint": "/custom-endpoint"
+}
+```
+
+**Response (200 OK):** Returns the updated widget data in bot-parseable format (same structure as GET).
+
 ### Execute Server Code
 
 Triggers execution of the widget's server code to fetch fresh data.
@@ -831,14 +949,30 @@ Content-Type: application/json
 OpenClaw agents can "read the dashboard" by:
 
 1. **Listing widget instances:** `GET /api/widgets` to see what's on the dashboard
-2. **Executing each widget's server code:** `POST /api/custom-widgets/:slug/execute` for fresh data
-3. **Summarizing for users:** Convert the raw data into natural language
+2. **Reading cached data:** `GET /api/widgets/:id/data` for each widget (fast, no upstream calls)
+3. **Optionally refresh stale data:** If `stale: true`, use `POST /api/widget-data?force=true` to refresh
+4. **Summarizing for users:** Convert the raw data into natural language
 
-**Example agent flow:**
+**Example agent flow (efficient - using cache):**
 
 ```
 User: "What's on my dashboard?"
 
+Agent:
+1. GET /api/widgets → [{ id: "widget_abc", custom_widget_id: "cw_prs" }, ...]
+2. GET /api/widgets/widget_abc/data → { data: { prs: [...] }, stale: false }
+3. GET /api/widgets/widget_def/data → { data: { temp: 72 }, stale: true }
+4. (Optional) POST /api/widget-data?force=true for stale widget
+
+Response: "Your dashboard shows:
+- 3 open PRs on github/glance (newest: 'Add widget SDK docs' by zeus)
+- Weather in SF: 72°F and sunny (updating...)
+- API usage: 45% of monthly limit"
+```
+
+**Legacy flow (triggers fetches - use sparingly):**
+
+```
 Agent:
 1. GET /api/widgets → [{ custom_widget_id: "cw_abc", config: {...} }, ...]
 2. GET /api/custom-widgets → [{ slug: "github-prs" }, { slug: "weather" }]
@@ -1713,15 +1847,23 @@ Understanding API response structures is critical for parsing and handling data 
 | `DELETE` | `/api/custom-widgets/:slug`         | Delete a widget definition  | Bearer token |
 | `POST`   | `/api/custom-widgets/:slug/execute` | Execute server code         | Bearer token |
 
+### Widget Data Endpoints
+
+| Method   | Endpoint                      | Description                                    | Auth         |
+| -------- | ----------------------------- | ---------------------------------------------- | ------------ |
+| `POST`   | `/api/widget-data`            | Fetch data from provider (caches automatically)| Bearer token |
+| `POST`   | `/api/widget-data?force=true` | Force refresh (bypass cache)                   | Bearer token |
+
 ### Widget Instance Endpoints
 
-| Method   | Endpoint           | Description                   | Auth         |
-| -------- | ------------------ | ----------------------------- | ------------ |
-| `GET`    | `/api/widgets`     | List all widgets on dashboard | Bearer token |
-| `POST`   | `/api/widgets`     | Add a widget to dashboard     | Bearer token |
-| `GET`    | `/api/widgets/:id` | Get a widget instance         | Bearer token |
-| `PATCH`  | `/api/widgets/:id` | Update a widget instance      | Bearer token |
-| `DELETE` | `/api/widgets/:id` | Remove widget from dashboard  | Bearer token |
+| Method   | Endpoint                | Description                      | Auth         |
+| -------- | ----------------------- | -------------------------------- | ------------ |
+| `GET`    | `/api/widgets`          | List all widgets on dashboard    | Bearer token |
+| `POST`   | `/api/widgets`          | Add a widget to dashboard        | Bearer token |
+| `GET`    | `/api/widgets/:id`      | Get a widget instance            | Bearer token |
+| `GET`    | `/api/widgets/:id/data` | Get cached widget data (no fetch)| Bearer token |
+| `PATCH`  | `/api/widgets/:id`      | Update a widget instance         | Bearer token |
+| `DELETE` | `/api/widgets/:id`      | Remove widget from dashboard     | Bearer token |
 
 ### Credential Endpoints
 
