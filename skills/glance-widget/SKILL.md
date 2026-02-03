@@ -1,7 +1,14 @@
 ---
 name: glance-widget
 description: "Create, update, export, and import Glance dashboard widgets. Use when user wants to: add something to their dashboard, create a widget, track data visually, show metrics/stats, display API data, monitor usage, or asks about dashboard customization. Supports server_code (API-driven), webhook, and agent_refresh (AI-populated) widget types."
-metadata: { "openclaw": { "emoji": "📊" } }
+metadata:
+  openclaw:
+    emoji: "🖥️"
+    homepage: "https://www.openglance.dev/"
+    requires:
+      env:
+        - GLANCE_URL
+    primaryEnv: GLANCE_URL
 ---
 
 # Glance Widget SDK

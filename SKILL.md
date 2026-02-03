@@ -1,16 +1,14 @@
 ---
 name: glance
-description: AI-extensible personal dashboard. Create custom widgets via API to display GitHub PRs, API usage, weather, or any data source. Use when the user wants dashboard widgets, data visualizations, or to track metrics.
+description: "AI-extensible personal dashboard. Create custom widgets via API to display GitHub PRs, API usage, weather, or any data source. Use when the user wants dashboard widgets, data visualizations, or to track metrics."
 metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "⚡",
-        "homepage": "https://github.com/acfranzen/glance",
-        "requires": { "env": ["GLANCE_URL"] },
-        "primaryEnv": "GLANCE_URL",
-      },
-  }
+  openclaw:
+    emoji: "🖥️"
+    homepage: "https://www.openglance.dev/"
+    requires:
+      env:
+        - GLANCE_URL
+    primaryEnv: GLANCE_URL
 ---
 
 # Glance Dashboard
