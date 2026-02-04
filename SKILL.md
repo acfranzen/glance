@@ -246,24 +246,27 @@ function Widget({ serverData }) {
   if (loading) return <Loading message="Waiting for data..." />;
   if (error) return <ErrorDisplay message={error} />;
   
-  // NOTE: Do NOT add "Updated at" footer or refresh button - 
-  // the framework adds these automatically via WidgetRefreshFooter
+  // NOTE: Do NOT wrap in <Card> - the framework wrapper (CustomWidgetWrapper) 
+  // already provides the outer card with title, refresh button, and footer.
+  // Just render your content directly.
   return (
-    <Card className="h-full">
-      <CardHeader>
-        <CardTitle>GitHub PRs</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <List items={data.prs?.map(pr => ({
-          title: pr.title,
-          subtitle: `#${pr.number} by ${pr.author}`,
-          badge: pr.state
-        })) || []} />
-      </CardContent>
-    </Card>
+    <div className="space-y-3">
+      <List items={data.prs?.map(pr => ({
+        title: pr.title,
+        subtitle: `#${pr.number} by ${pr.author}`,
+        badge: pr.state
+      })) || []} />
+    </div>
   );
 }
 ```
+
+**Important:** The widget wrapper (`CustomWidgetWrapper`) provides:
+- Outer `<Card>` container with header (widget title)
+- Refresh button and "Updated X ago" footer
+- Loading/error states
+
+Your widget code should just render the **content** — no Card, no CardHeader, no footer.
 
 **Key difference:** `agent_refresh` widgets receive data via `serverData` prop, NOT by calling `useData()`. The agent pushes data to `/api/widgets/{slug}/cache`.
 
