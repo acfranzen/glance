@@ -1,36 +1,40 @@
-import type { Metadata } from 'next';
-import { DM_Sans, Playfair_Display } from 'next/font/google';
-import { ThemeProvider } from '@/components/theme-provider';
-import { Toaster } from 'sonner';
-import './globals.css';
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeManager } from "@/components/ThemeManager";
+import { Toaster } from "sonner";
+import "./globals.css";
 
-const dmSans = DM_Sans({
-  subsets: ['latin'],
-  variable: '--font-sans',
-  display: 'swap',
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
 });
 
-const playfair = Playfair_Display({
-  subsets: ['latin'],
-  variable: '--font-serif',
-  display: 'swap',
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: 'Glance - One Look at Your Day',
-  description: 'A personal productivity dashboard with drag-and-drop widgets that aggregate data from multiple sources.',
-  metadataBase: new URL('https://glance.app'),
+  title: "Glance - The Dashboard Skill for OpenClaw",
+  description:
+    "Stop configuring dashboards. Just tell OpenClaw what you want to see. Glance gives your OpenClaw agent a canvas to build, update, and read widgets.",
+  metadataBase: new URL("https://glance.app"),
   openGraph: {
-    title: 'Glance - One Look at Your Day',
-    description: 'A personal productivity dashboard with drag-and-drop widgets that aggregate data from multiple sources.',
-    siteName: 'Glance',
-    locale: 'en_US',
-    type: 'website',
+    title: "Glance - The Dashboard Skill for OpenClaw",
+    description:
+      "Stop configuring dashboards. Just tell OpenClaw what you want to see.",
+    siteName: "Glance",
+    locale: "en_US",
+    type: "website",
   },
   twitter: {
-    card: 'summary_large_image',
-    title: 'Glance - One Look at Your Day',
-    description: 'A personal productivity dashboard with drag-and-drop widgets.',
+    card: "summary_large_image",
+    title: "Glance - The Dashboard Skill for OpenClaw",
+    description:
+      "Stop configuring dashboards. Just tell OpenClaw what you want to see.",
   },
 };
 
@@ -41,13 +45,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${dmSans.variable} ${playfair.variable} antialiased`}>
+      <body
+        className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}
+      >
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >
+          <ThemeManager />
           {children}
           <Toaster position="bottom-right" richColors />
         </ThemeProvider>
