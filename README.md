@@ -35,13 +35,25 @@ If you're an AI agent (OpenClaw, Cursor, Claude, etc.), read these files:
 
 ### 1. Install Glance
 
-#### Option A: Docker (Recommended)
+#### Option A: One-Line Install (Recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/acfranzen/glance/main/scripts/install.sh | bash
+```
+
+This will:
+- Clone the repository to `~/.glance`
+- Install dependencies via pnpm
+- Offer to install as a background service (launchd on macOS, systemd on Linux)
+- Open the dashboard in your browser
+
+#### Option B: Docker
 
 ```bash
 git clone https://github.com/acfranzen/glance.git && cd glance && docker compose up
 ```
 
-#### Option B: npm
+#### Option C: Manual Install
 
 ```bash
 git clone https://github.com/acfranzen/glance.git
@@ -53,6 +65,69 @@ npm run dev
 Open [http://localhost:3333](http://localhost:3333).
 
 > **Note**: On first run, Glance auto-generates a secure encryption key. Your data is stored locally in `./data/glance.db`.
+
+### Running as a Background Service
+
+Keep Glance running 24/7 without keeping a terminal open.
+
+#### macOS (launchd)
+
+```bash
+cd ~/.glance  # or your Glance directory
+./scripts/install-launchd.sh
+```
+
+Benefits:
+- ✅ Starts automatically on login
+- ✅ Restarts on crash
+- ✅ Logs to `~/Library/Logs/glance/`
+- ✅ Survives terminal closes
+
+Commands:
+```bash
+# Stop service
+launchctl unload ~/Library/LaunchAgents/com.glance.dashboard.plist
+
+# Start service
+launchctl load ~/Library/LaunchAgents/com.glance.dashboard.plist
+
+# View logs
+tail -f ~/Library/Logs/glance/glance.log
+
+# Uninstall service
+./scripts/uninstall-launchd.sh
+```
+
+#### Linux (systemd)
+
+```bash
+cd ~/.glance  # or your Glance directory
+./scripts/install-systemd.sh
+```
+
+Benefits:
+- ✅ Starts automatically on login
+- ✅ Restarts on crash
+- ✅ Integrates with journald
+- ✅ Survives terminal closes
+
+Commands:
+```bash
+# Stop service
+systemctl --user stop glance
+
+# Start service
+systemctl --user start glance
+
+# View logs
+journalctl --user -u glance -f
+
+# Service status
+systemctl --user status glance
+
+# Uninstall service
+./scripts/uninstall-systemd.sh
+```
 
 ### 2. Tell OpenClaw About It
 
