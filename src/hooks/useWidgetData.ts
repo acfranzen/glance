@@ -12,6 +12,8 @@ export interface UseWidgetDataResult {
   freshness: FreshnessStatus;
   refresh: () => Promise<void>;
   isRefreshing: boolean;
+  pendingRefresh: { requestedAt: string } | null;
+  isRefreshQueued: boolean;
 }
 
 interface FetchConfig {
@@ -19,8 +21,23 @@ interface FetchConfig {
   refresh_endpoint?: string;
 }
 
+// Cache API response shape
+interface CacheResponse {
+  has_cache: boolean;
+  data?: unknown;
+  fetched_at?: string;
+  cachedAt?: string; // Legacy field
+  expires_at?: string;
+  age_seconds?: number;
+  freshness?: FreshnessStatus;
+  pending_refresh?: {
+    requested_at: string;
+  } | null;
+  message?: string;
+}
+
 // Fetcher for cache endpoint (GET) - just reads from SQLite
-async function cacheFetcher(url: string) {
+async function cacheFetcher(url: string): Promise<CacheResponse> {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Cache fetch failed: ${response.status}`);
@@ -134,7 +151,8 @@ export function useWidgetData(
         await fetch(`/api/widgets/${definition.slug}/refresh`, {
           method: 'POST',
         });
-        // Agent will update SQLite, SWR will pick it up on next poll
+        // Immediately refresh to show queued state
+        await mutate();
       } else if (isWebhook) {
         // webhook: Call external refresh endpoint if configured
         if (fetchConfig?.refresh_endpoint) {
@@ -156,6 +174,12 @@ export function useWidgetData(
   const fetchedAt = cacheResponse?.cachedAt || cacheResponse?.fetched_at || null;
   const freshness: FreshnessStatus = cacheResponse?.freshness || null;
 
+  // Extract pending refresh state from cache response
+  const pendingRefresh = cacheResponse?.pending_refresh
+    ? { requestedAt: cacheResponse.pending_refresh.requested_at }
+    : null;
+  const isRefreshQueued = !!pendingRefresh;
+
   return {
     data,
     isLoading: cacheLoading,
@@ -163,5 +187,7 @@ export function useWidgetData(
     freshness,
     refresh,
     isRefreshing,
+    pendingRefresh,
+    isRefreshQueued,
   };
 }

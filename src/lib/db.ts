@@ -1092,4 +1092,31 @@ export function getDatabase(): Database.Database {
   return getDb();
 }
 
+// Get pending refresh request for a widget (for agent_refresh widgets)
+export function getPendingRefreshRequest(widgetSlug: string): { requested_at: string } | null {
+  const db = getDb();
+
+  // Check if table exists first
+  const tableExists = db.prepare(`
+    SELECT name FROM sqlite_master WHERE type='table' AND name='widget_refresh_requests'
+  `).get();
+
+  if (!tableExists) {
+    return null;
+  }
+
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+  const result = db.prepare(`
+    SELECT requested_at FROM widget_refresh_requests
+    WHERE widget_slug = ?
+      AND processed_at IS NULL
+      AND requested_at > ?
+    ORDER BY requested_at DESC
+    LIMIT 1
+  `).get(widgetSlug, fiveMinutesAgo) as { requested_at: string } | undefined;
+
+  return result || null;
+}
+
 export default { getDatabase };

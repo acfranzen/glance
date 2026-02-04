@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateAuthOrInternal } from "@/lib/auth";
-import { getCustomWidgetBySlug, setCachedWidgetData, getCachedWidgetData, getWidgetsByCustomWidgetId } from "@/lib/db";
+import { getCustomWidgetBySlug, setCachedWidgetData, getCachedWidgetData, getWidgetsByCustomWidgetId, getPendingRefreshRequest } from "@/lib/db";
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 
@@ -81,6 +81,9 @@ export async function GET(
     freshness = "stale";
   }
 
+  // Check for pending refresh requests (for agent_refresh widgets)
+  const pendingRefresh = fetch?.type === "agent_refresh" ? getPendingRefreshRequest(slug) : null;
+
   return NextResponse.json({
     has_cache: true,
     data: cached.data,
@@ -88,6 +91,9 @@ export async function GET(
     expires_at: cached.expires_at,
     age_seconds: ageSeconds,
     freshness,
+    pending_refresh: pendingRefresh ? {
+      requested_at: pendingRefresh.requested_at
+    } : null,
   });
 }
 
