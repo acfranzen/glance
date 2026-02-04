@@ -2167,12 +2167,42 @@ Is data available via API?
 
 When a widget uses `fetch.type = "agent_refresh"`, the OpenClaw agent **MUST** follow this contract:
 
-#### 1. Periodic Updates
+#### 1. Refresh Triggers
 
-The agent should refresh data based on:
-- `fetch.schedule` - Cron expression (e.g., `"*/5 * * * *"` for every 5 minutes)
-- `fetch.expected_freshness_seconds` - Maximum age before data is "stale"
-- If no schedule, agent must manually trigger refreshes
+Widgets can be refreshed via:
+- **Cron jobs** — scheduled refreshes (e.g., every 15 minutes)
+- **Manual button** — user clicks refresh in the UI, triggers webhook
+- **Heartbeat polling** — agent checks for pending refresh requests
+
+**All triggers send the same simple message:**
+```
+⚡ WIDGET REFRESH: {slug}
+```
+
+The agent then:
+1. Parses the slug from the message
+2. Queries the widget's `fetch.instructions` from the database
+3. Spawns a subagent with those instructions
+
+**This keeps instructions in one place** — the widget definition. Cron jobs and webhooks don't duplicate the logic.
+
+Example cron job payload (simple):
+```json
+{
+  "kind": "systemEvent",
+  "text": "⚡ WIDGET REFRESH: claude-code-usage"
+}
+```
+
+Example agent handler (pseudocode):
+```javascript
+if (message.startsWith('⚡ WIDGET REFRESH:')) {
+  const slug = message.split(':')[1].trim();
+  const widget = await db.query('SELECT fetch FROM custom_widgets WHERE slug = ?', slug);
+  const instructions = widget.fetch.instructions;
+  spawnSubagent({ task: instructions, model: 'haiku' });
+}
+```
 
 #### 2. Data Push Endpoint
 
@@ -2236,7 +2266,13 @@ async function refreshHomebrew(slug) {
 
 ### Writing fetch.instructions (Critical for Agent Refresh)
 
-For `agent_refresh` widgets, `fetch.instructions` is **the most important field** — it tells the agent exactly how to collect and format data. Think of it as the equivalent of `server_code` for API widgets.
+For `agent_refresh` widgets, `fetch.instructions` is **the single source of truth** — it tells the agent exactly how to collect and format data. Think of it as the equivalent of `server_code` for API widgets.
+
+**Why single source of truth matters:**
+- Cron jobs just send `⚡ WIDGET REFRESH: {slug}` — no duplicated instructions
+- Manual refresh webhooks send the same simple message
+- Agent looks up `fetch.instructions` from the database and follows them
+- Update instructions in one place, all refresh triggers use them automatically
 
 #### What to Include
 
@@ -2681,11 +2717,14 @@ When importing a widget package:
   },
   "cronSchedule": {
     "expression": "*/15 * * * *",
-    "instructions": "Run `brew list --formula | wc -l` to get package count...",
+    "message": "⚡ WIDGET REFRESH: homebrew-status",
     "slug": "homebrew-status"
   },
   "message": "Widget imported successfully! Cron schedule returned for OpenClaw registration."
 }
+```
+
+**Note:** The cron message is intentionally simple — just the slug. The agent looks up `fetch.instructions` from the database when processing the refresh request. This keeps instructions in one place (the widget definition) rather than duplicating them in cron payloads.
 ```
 
 ### Sharing Widgets
