@@ -64,35 +64,33 @@ export async function POST(
       VALUES (?, ?)
     `).run(slug, now);
 
-    // Try to wake the OpenClaw agent if gateway URL is configured
-    const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL;
-    const gatewayToken = process.env.OPENCLAW_TOKEN;
+    // Try to wake the OpenClaw agent if webhook is configured
+    const webhookUrl = process.env.OPENCLAW_WEBHOOK_URL;
+    const webhookToken = process.env.OPENCLAW_WEBHOOK_TOKEN;
     let webhookSent = false;
 
-    if (gatewayUrl && gatewayToken) {
+    if (webhookUrl && webhookToken) {
       try {
-        const response = await fetch(`${gatewayUrl}/tools/invoke`, {
+        const response = await fetch(webhookUrl, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${gatewayToken}`,
+            'Authorization': `Bearer ${webhookToken}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            tool: 'cron',
-            args: {
-              action: 'wake',
-              text: `⚡ WIDGET REFRESH: Refresh the "${slug}" widget now and POST to cache`,
-              mode: 'now'
-            }
-          })
+            tool: 'wake',
+            text: `⚡ WIDGET REFRESH: ${slug}`
+          }),
+          signal: AbortSignal.timeout(5000) // 5 second timeout
         });
-        // Only mark as sent if response was successful (2xx)
+        
         webhookSent = response.ok;
         if (!response.ok) {
           console.error(`OpenClaw webhook failed: ${response.status} ${response.statusText}`);
         }
       } catch (e) {
-        // Network failure - agent will pick it up on next heartbeat
+        // Fire-and-forget: Network failure or timeout won't block the request
+        // Agent will pick it up on next heartbeat via the queued request
         console.error('Failed to notify OpenClaw:', e);
       }
     }

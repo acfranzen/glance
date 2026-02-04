@@ -132,7 +132,7 @@ systemctl --user status glance
 ./scripts/uninstall-systemd.sh
 ```
 
-### 2. Tell OpenClaw About It
+### 2. Configure OpenClaw Integration
 
 Add to your OpenClaw workspace (TOOLS.md or memory):
 
@@ -145,6 +145,19 @@ Add to your OpenClaw workspace (TOOLS.md or memory):
 - API: POST /api/widgets/instances to add widgets to dashboard
 - API: POST /api/credentials to store API keys
 ```
+
+#### Instant Refresh Notifications (Optional)
+
+For agent_refresh widgets, Glance can ping OpenClaw immediately when a user clicks refresh (instead of waiting for heartbeat polls).
+
+Add to your `.env.local`:
+
+```bash
+OPENCLAW_WEBHOOK_URL=http://localhost:18789/tools/invoke
+OPENCLAW_WEBHOOK_TOKEN=your-openclaw-token
+```
+
+When configured, clicking refresh on any `agent_refresh` widget will instantly wake OpenClaw to process the request. If the webhook fails, the request still queues normally for the next heartbeat.
 
 ### 3. Start Using It
 
