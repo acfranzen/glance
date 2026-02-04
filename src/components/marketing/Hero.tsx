@@ -81,6 +81,10 @@ export function Hero() {
           </Link>
         </Button>
       </div>
+
+      <p className="mt-6 text-xs text-muted-foreground">
+        100% open source · MIT License · Built with Next.js
+      </p>
     </section>
   );
 }
