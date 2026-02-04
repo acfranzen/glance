@@ -25,7 +25,6 @@ import {
   Key,
   Palette,
   Upload,
-  Download,
   FolderDown,
   FolderUp,
   MoreHorizontal,
@@ -61,15 +60,6 @@ export function DashboardHeader() {
           <AddWidgetModal />
 
           <Button
-            variant="outline"
-            onClick={() => setImportOpen(true)}
-            title="Import Widget Package"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Import
-          </Button>
-
-          <Button
             variant={isEditing ? "default" : "outline"}
             onClick={() => setEditing(!isEditing)}
           >
@@ -97,14 +87,19 @@ export function DashboardHeader() {
 
           <ThemeImportModal />
 
-          {/* Dashboard Menu */}
+          {/* Import/Export Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" title="Dashboard Options">
+              <Button variant="ghost" size="icon" title="Import & Export">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Import Widget
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setDashboardExportOpen(true)}>
                 <FolderDown className="h-4 w-4 mr-2" />
                 Export Dashboard
@@ -164,18 +159,6 @@ export function DashboardHeader() {
             <AddWidgetModal />
 
             <Button
-              variant="outline"
-              onClick={() => {
-                setImportOpen(true);
-                setMobileMenuOpen(false);
-              }}
-              className="w-full justify-start"
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Import Widget
-            </Button>
-
-            <Button
               variant={isEditing ? "default" : "outline"}
               onClick={() => {
                 setEditing(!isEditing);
@@ -218,14 +201,25 @@ export function DashboardHeader() {
             />
 
             <div className="border-t pt-2 mt-2">
-              <p className="text-xs text-muted-foreground mb-2 px-1">Dashboard</p>
+              <p className="text-xs text-muted-foreground mb-2 px-1">Import & Export</p>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setImportOpen(true);
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full justify-start"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Import Widget
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => {
                   setDashboardExportOpen(true);
                   setMobileMenuOpen(false);
                 }}
-                className="w-full justify-start"
+                className="w-full justify-start mt-2"
               >
                 <FolderDown className="h-4 w-4 mr-2" />
                 Export Dashboard
