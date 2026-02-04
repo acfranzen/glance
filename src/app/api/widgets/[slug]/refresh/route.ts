@@ -71,15 +71,19 @@ export async function POST(
 
     if (gatewayUrl && gatewayToken) {
       try {
-        const response = await fetch(`${gatewayUrl}/api/sessions/wake`, {
+        const response = await fetch(`${gatewayUrl}/tools/invoke`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${gatewayToken}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            text: `⚡ WIDGET REFRESH: Refresh the "${slug}" widget now and POST to cache`,
-            mode: 'now'
+            tool: 'cron',
+            args: {
+              action: 'wake',
+              text: `⚡ WIDGET REFRESH: Refresh the "${slug}" widget now and POST to cache`,
+              mode: 'now'
+            }
           })
         });
         // Only mark as sent if response was successful (2xx)
