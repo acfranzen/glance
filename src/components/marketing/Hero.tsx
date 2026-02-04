@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Check, Copy } from "lucide-react";
 
@@ -20,7 +21,7 @@ export function Hero() {
   }
 
   return (
-    <section className="relative flex min-h-[80vh] flex-col items-center justify-center px-4 py-24 text-center">
+    <section className="relative flex flex-col items-center justify-center px-4 py-24 text-center">
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,oklch(0.6171_0.1375_39.0427_/_0.12),transparent)]" />
 
       <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-sm text-foreground">
@@ -85,6 +86,22 @@ export function Hero() {
       <p className="mt-6 text-xs text-muted-foreground">
         100% open source · MIT License
       </p>
+
+      {/* Dashboard Preview */}
+      <div className="mt-16 w-full max-w-5xl px-4">
+        <div className="relative rounded-xl border border-border/50 bg-card/50 p-2 shadow-2xl">
+          <div className="overflow-hidden rounded-lg">
+            <Image
+              src="/glance.png"
+              alt="Glance Dashboard"
+              width={1280}
+              height={720}
+              className="w-full h-auto"
+              priority
+            />
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
