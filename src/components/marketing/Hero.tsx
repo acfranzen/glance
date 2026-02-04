@@ -89,15 +89,18 @@ export function Hero() {
 
       {/* Dashboard Preview - Full Width */}
       <div className="mt-20 w-full max-w-7xl px-6">
-        <div className="relative rounded-2xl bg-gradient-to-b from-muted/80 to-muted/40 p-1 shadow-2xl shadow-black/30 ring-1 ring-white/10">
-          <div className="rounded-xl bg-background/50 p-1">
-            <div className="overflow-hidden rounded-lg ring-1 ring-border">
+        <div className="relative">
+          {/* Shadow glow effect */}
+          <div className="absolute -inset-4 bg-primary/5 blur-3xl rounded-3xl" />
+          
+          {/* Main container */}
+          <div className="relative rounded-2xl overflow-hidden shadow-[0_20px_70px_-15px_rgba(0,0,0,0.5)] ring-1 ring-white/10">
             {/* Light mode image */}
             <Image
               src="/glance-light.png"
               alt="Glance Dashboard"
-              width={2880}
-              height={1800}
+              width={2560}
+              height={1600}
               className="w-full h-auto dark:hidden"
               priority
               unoptimized
@@ -106,13 +109,15 @@ export function Hero() {
             <Image
               src="/glance-dark.png"
               alt="Glance Dashboard"
-              width={2880}
-              height={1800}
+              width={2560}
+              height={1600}
               className="w-full h-auto hidden dark:block"
               priority
               unoptimized
             />
-            </div>
+            
+            {/* Fade out gradient at bottom */}
+            <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-background to-transparent" />
           </div>
         </div>
       </div>
