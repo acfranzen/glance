@@ -1,19 +1,40 @@
 ---
 name: glance
-description: "Create, update, export, and import Glance dashboard widgets. Use when user wants to: add something to their dashboard, create a widget, track data visually, show metrics/stats, display API data, monitor usage, or asks about dashboard customization. Supports server_code (API-driven), webhook, and agent_refresh (AI-populated) widget types."
+description: "Create, update, and manage Glance dashboard widgets. Use when user wants to: add something to their dashboard, create a widget, track data visually, show metrics/stats, display API data, or monitor usage."
 metadata:
   openclaw:
     emoji: "🖥️"
-    homepage: "https://www.openglance.dev/"
+    homepage: "https://github.com/acfranzen/glance"
     requires:
-      env:
-        - GLANCE_URL
+      env: ["GLANCE_URL"]
+      bins: ["curl"]
     primaryEnv: GLANCE_URL
 ---
 
-# Glance Widget SDK
+# Glance Widget Skill
 
-Create custom dashboard widgets that display data from any API.
+Create and manage dashboard widgets. Most widgets use `agent_refresh` — **you** collect the data.
+
+## Quick Start
+
+```bash
+# Check Glance is running
+curl -s "$GLANCE_URL/api/health"
+
+# List existing widgets
+curl -s "$GLANCE_URL/api/widgets" | jq '.custom_widgets[].slug'
+
+# Refresh a widget (look up instructions, collect data, POST to cache)
+sqlite3 $GLANCE_DATA/glance.db "SELECT json_extract(fetch, '$.instructions') FROM custom_widgets WHERE slug = 'my-widget'"
+# Follow the instructions, then:
+curl -X POST "$GLANCE_URL/api/widgets/my-widget/cache" \
+  -H "Content-Type: application/json" \
+  -H "Origin: $GLANCE_URL" \
+  -d '{"data": {"value": 42, "fetchedAt": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}}'
+
+# Verify in browser
+browser action:open targetUrl:"$GLANCE_URL"
+```
 
 ## ⚠️ Widget Creation Checklist (MANDATORY)
 
@@ -705,3 +726,34 @@ To summarize dashboard for user:
 2. For each: POST /api/widgets/:slug/execute
 3. Combine into natural language summary
 ```
+
+---
+
+## ⚠️ Rules & Gotchas
+
+1. **Browser verify EVERYTHING** — don't report success until you see the widget render correctly
+2. **agent_refresh = YOU collect data** — the widget just displays what you POST to cache
+3. **fetch.instructions is the source of truth** — cron jobs just send the slug, you look up instructions
+4. **Always include fetchedAt** — widgets need timestamps for "Updated X ago" display
+5. **data_schema is required** — cache POSTs validate against it, malformed data returns 400
+6. **Don't wrap in Card** — the framework provides the outer card, you render content only
+7. **Use Haiku for refresh subagents** — mechanical data collection doesn't need Opus
+8. **Mark refresh requests as processed** — `DELETE /api/widgets/{slug}/refresh` after handling
+9. **Spawn subagents for refreshes** — don't block main session with PTY/long-running work
+
+## Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `GLANCE_URL` | Glance server URL | `http://localhost:3333` |
+| `GLANCE_DATA` | Path to SQLite database | `/tmp/glance-test/data` |
+| `OPENCLAW_GATEWAY_URL` | For webhook refresh notifications | `https://localhost:18789` |
+| `OPENCLAW_TOKEN` | Gateway auth token | `d551fe97...` |
+
+## Learnings (Feb 2026)
+
+- **Webhook refresh works** — Glance POSTs to OpenClaw gateway, agent wakes immediately
+- **Simple cron messages** — just `⚡ WIDGET REFRESH: {slug}`, agent looks up instructions
+- **AI summaries need AI** — for recent-emails, YOU generate the summaries, not some API
+- **icalBuddy for iCloud** — `gog calendar` doesn't work for iCloud, use `/opt/homebrew/bin/icalBuddy`
+- **wttr.in for weather** — free, no API key, JSON format: `wttr.in/City?format=j1`
