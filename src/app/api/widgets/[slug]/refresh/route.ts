@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import https from 'https';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,23 +72,62 @@ export async function POST(
 
     if (webhookUrl && webhookToken) {
       try {
-        const response = await fetch(webhookUrl, {
+        const payload = JSON.stringify({
+          tool: 'wake',
+          text: `⚡ WIDGET REFRESH: ${slug}`
+        });
+
+        // Use node:https directly for better SSL control (especially for localhost)
+        const url = new URL(webhookUrl);
+        const isHttps = url.protocol === 'https:';
+        const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+
+        const options: any = {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${webhookToken}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(payload)
           },
-          body: JSON.stringify({
-            tool: 'wake',
-            text: `⚡ WIDGET REFRESH: ${slug}`
-          }),
-          signal: AbortSignal.timeout(5000) // 5 second timeout
-        });
-        
-        webhookSent = response.ok;
-        if (!response.ok) {
-          console.error(`OpenClaw webhook failed: ${response.status} ${response.statusText}`);
+          timeout: 5000
+        };
+
+        // Allow self-signed certificates for localhost
+        if (isHttps && isLocalhost) {
+          options.rejectUnauthorized = false;
         }
+
+        const httpModule = isHttps ? https : (await import('http')).default;
+        
+        await new Promise<void>((resolve, reject) => {
+          const req = httpModule.request(webhookUrl, options, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+              if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                webhookSent = true;
+                resolve();
+              } else {
+                console.error(`OpenClaw webhook failed: ${res.statusCode} ${res.statusMessage} - ${data}`);
+                resolve(); // Don't reject - fire-and-forget
+              }
+            });
+          });
+
+          req.on('error', (e) => {
+            console.error('Failed to notify OpenClaw:', e.message);
+            resolve(); // Don't reject - fire-and-forget
+          });
+
+          req.on('timeout', () => {
+            req.destroy();
+            console.error('OpenClaw webhook timeout');
+            resolve(); // Don't reject - fire-and-forget
+          });
+
+          req.write(payload);
+          req.end();
+        });
       } catch (e) {
         // Fire-and-forget: Network failure or timeout won't block the request
         // Agent will pick it up on next heartbeat via the queued request
