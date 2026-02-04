@@ -92,12 +92,13 @@ export function Hero() {
         <div className="relative rounded-xl border border-border/50 bg-card/50 p-2 shadow-2xl">
           <div className="overflow-hidden rounded-lg">
             <Image
-              src="/glance.png"
+              src="/glance.png?v=2"
               alt="Glance Dashboard"
-              width={1280}
-              height={720}
+              width={2560}
+              height={1440}
               className="w-full h-auto"
               priority
+              unoptimized
             />
           </div>
         </div>
