@@ -1,19 +1,72 @@
 ---
 name: glance
-description: "Create, update, export, and import Glance dashboard widgets. Use when user wants to: add something to their dashboard, create a widget, track data visually, show metrics/stats, display API data, monitor usage, or asks about dashboard customization. Supports server_code (API-driven), webhook, and agent_refresh (AI-populated) widget types."
+description: "Create, update, and manage Glance dashboard widgets. Use when user wants to: add something to their dashboard, create a widget, track data visually, show metrics/stats, display API data, or monitor usage."
 metadata:
   openclaw:
     emoji: "🖥️"
-    homepage: "https://www.openglance.dev/"
+    homepage: "https://github.com/acfranzen/glance"
     requires:
-      env:
-        - GLANCE_URL
+      env: ["GLANCE_URL"]
+      bins: ["curl"]
     primaryEnv: GLANCE_URL
 ---
 
-# Glance Widget SDK
+# Glance Widget Skill
 
-Create custom dashboard widgets that display data from any API.
+Create and manage dashboard widgets. Most widgets use `agent_refresh` — **you** collect the data.
+
+## Quick Start
+
+```bash
+# Check Glance is running
+curl -s "$GLANCE_URL/api/health"
+
+# List existing widgets
+curl -s "$GLANCE_URL/api/widgets" | jq '.custom_widgets[].slug'
+
+# Refresh a widget (look up instructions, collect data, POST to cache)
+sqlite3 $GLANCE_DATA/glance.db "SELECT json_extract(fetch, '$.instructions') FROM custom_widgets WHERE slug = 'my-widget'"
+# Follow the instructions, then:
+curl -X POST "$GLANCE_URL/api/widgets/my-widget/cache" \
+  -H "Content-Type: application/json" \
+  -H "Origin: $GLANCE_URL" \
+  -d '{"data": {"value": 42, "fetchedAt": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}}'
+
+# Verify in browser
+browser action:open targetUrl:"$GLANCE_URL"
+```
+
+## ⚠️ Widget Creation Checklist (MANDATORY)
+
+Every widget must complete ALL steps before being considered done:
+
+```
+□ Step 1: Create widget definition (POST /api/widgets)
+    - source_code with Widget function
+    - data_schema (REQUIRED for validation)
+    - fetch config (type + instructions for agent_refresh)
+    
+□ Step 2: Add to dashboard (POST /api/widgets/instances)
+    - custom_widget_id matches definition
+    - title and config set
+    
+□ Step 3: Populate cache (for agent_refresh widgets)
+    - Data matches data_schema exactly
+    - Includes fetchedAt timestamp
+    
+□ Step 4: Set up cron job (for agent_refresh widgets)
+    - Simple message: "⚡ WIDGET REFRESH: {slug}"
+    - Appropriate schedule (*/15 or */30 typically)
+    
+□ Step 5: BROWSER VERIFICATION (MANDATORY)
+    - Open http://localhost:3333
+    - Widget is visible on dashboard
+    - Shows actual data (not loading spinner)
+    - Data values match what was cached
+    - No errors or broken layouts
+    
+⛔ DO NOT report widget as complete until Step 5 passes!
+```
 
 ## Quick Reference
 
@@ -210,33 +263,49 @@ GET /api/widgets/github-prs
 # Response includes dataSchema showing required fields and types
 ```
 
-### Step 4: Verify Widget Renders
+### Step 4: Browser Verification (REQUIRED)
 
-**Always verify the widget appears and displays data correctly:**
+**⚠️ MANDATORY: Every widget creation and refresh MUST end with browser verification.**
+
+Never consider a widget "done" until you've visually confirmed it renders correctly on the dashboard.
 
 ```javascript
-// Use browser automation to verify
-browser.action = 'snapshot';
-browser.targetUrl = 'http://localhost:3333';
+// REQUIRED: Open dashboard and verify widget renders
+browser({ 
+  action: 'open', 
+  targetUrl: 'http://localhost:3333',
+  profile: 'openclaw'
+});
 
-// Look for the widget by title in the snapshot
-// The widget should show actual data, not "Waiting for data..."
-// If stuck on loading, check:
-// 1. Cache was populated (Step 3)
-// 2. Widget instance exists on dashboard (Step 2)
-// 3. Widget ID matches between definition and instance
+// Take a snapshot and check the widget
+browser({ action: 'snapshot' });
+
+// Look for:
+// 1. Widget is visible on the dashboard
+// 2. Shows actual data, NOT "Waiting for data..." or loading spinner
+// 3. Data values match what was pushed to cache
+// 4. No error messages displayed
+// 5. Layout looks correct (not broken/overlapping)
 ```
 
-**Verification checklist:**
-- [ ] Widget visible on dashboard (not just in database)
-- [ ] Shows actual data, not loading spinner
-- [ ] Data matches what was pushed to cache
-- [ ] No error states displayed
+**Verification checklist (must ALL be true):**
+- [ ] Widget visible on dashboard grid
+- [ ] Title displays correctly
+- [ ] Data renders (not stuck on loading)
+- [ ] Values match cached data
+- [ ] No error states or broken layouts
+- [ ] "Updated X ago" footer shows recent timestamp
 
-**Common issues:**
-- "Waiting for data..." → Cache not populated or widget_instance_id mismatch
-- Widget not visible → Step 2 (add to dashboard) was skipped
-- Wrong data → Check slug matches between definition and cache POST
+**Common issues and fixes:**
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| "Waiting for data..." | Cache empty | POST data to `/api/widgets/{slug}/cache` |
+| Widget not visible | Not added to dashboard | `POST /api/widgets/instances` |
+| Wrong/old data | Slug mismatch | Check slug matches between definition and cache POST |
+| Broken layout | Bad JSX in source_code | Check widget code for syntax errors |
+| "No data" after POST | Schema validation failed | Check data matches `data_schema` |
+
+**If verification fails, fix the issue before reporting success.**
 
 ## Widget Code Template (agent_refresh)
 
@@ -352,6 +421,57 @@ This is NOT an external API or service. YOU must:
    }
    ```
 
+### Writing Excellent fetch.instructions
+
+The `fetch.instructions` field is the **single source of truth** for how to collect widget data. Write them clearly so any subagent can follow them.
+
+**Required sections:**
+```markdown
+## Data Collection
+Exact commands to run with full paths and flags.
+Include PTY requirements if interactive.
+
+## Data Transformation
+Exact JSON structure expected.
+Include field descriptions and examples.
+
+## Cache Update
+Full URL, required headers, body format.
+
+## Browser Verification
+Confirm the widget renders correctly.
+```
+
+**Good example:**
+```markdown
+## Data Collection
+```bash
+gog gmail search "in:inbox" --json
+```
+
+## Data Transformation
+Take first 5-8 emails, generate AI summary (3-5 words) for each:
+```json
+{
+  "emails": [{"id": "...", "from": "...", "subject": "...", "summary": "AI summary here", "unread": true}],
+  "fetchedAt": "ISO timestamp"
+}
+```
+
+## Cache Update
+POST to: http://localhost:3333/api/widgets/recent-emails/cache
+Header: Origin: http://localhost:3333
+Body: { "data": <object above> }
+
+## Browser Verification  
+Open http://localhost:3333 and confirm widget shows emails with AI summaries.
+```
+
+**Bad example (too vague):**
+```
+Get emails and post to cache.
+```
+
 ### Real Example: Claude Max Usage Widget
 
 This widget shows Claude CLI usage stats. The data comes from running `claude` in a PTY and navigating to `/status → Usage`.
@@ -364,9 +484,31 @@ This widget shows Claude CLI usage stats. The data comes from running `claude` i
 4. Parse the output: Session %, Week %, Extra %
 5. POST to /api/widgets/claude-code-usage/cache
 6. Kill the PTY session
+7. ⚠️ VERIFY: Open browser to http://localhost:3333 and confirm widget displays new data
 ```
 
 **This is YOUR responsibility as the agent.** The widget just displays whatever data is in the cache.
+
+### Subagent Task Template for Refreshes
+
+When spawning subagents for widget refreshes, always include browser verification:
+
+```javascript
+sessions_spawn({
+  task: `${fetchInstructions}
+
+## REQUIRED: Browser Verification
+After posting to cache, verify the widget renders correctly:
+1. Open http://localhost:3333 in browser
+2. Find the widget on the dashboard
+3. Confirm it shows the data you just posted
+4. Report any rendering issues
+
+Do NOT report success until browser verification passes.`,
+  model: 'haiku',
+  label: `${slug}-refresh`
+});
+```
 
 ### Cache Endpoint
 
@@ -584,3 +726,34 @@ To summarize dashboard for user:
 2. For each: POST /api/widgets/:slug/execute
 3. Combine into natural language summary
 ```
+
+---
+
+## ⚠️ Rules & Gotchas
+
+1. **Browser verify EVERYTHING** — don't report success until you see the widget render correctly
+2. **agent_refresh = YOU collect data** — the widget just displays what you POST to cache
+3. **fetch.instructions is the source of truth** — cron jobs just send the slug, you look up instructions
+4. **Always include fetchedAt** — widgets need timestamps for "Updated X ago" display
+5. **data_schema is required** — cache POSTs validate against it, malformed data returns 400
+6. **Don't wrap in Card** — the framework provides the outer card, you render content only
+7. **Use Haiku for refresh subagents** — mechanical data collection doesn't need Opus
+8. **Mark refresh requests as processed** — `DELETE /api/widgets/{slug}/refresh` after handling
+9. **Spawn subagents for refreshes** — don't block main session with PTY/long-running work
+
+## Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `GLANCE_URL` | Glance server URL | `http://localhost:3333` |
+| `GLANCE_DATA` | Path to SQLite database | `/tmp/glance-test/data` |
+| `OPENCLAW_GATEWAY_URL` | For webhook refresh notifications | `https://localhost:18789` |
+| `OPENCLAW_TOKEN` | Gateway auth token | `d551fe97...` |
+
+## Learnings (Feb 2026)
+
+- **Webhook refresh works** — Glance POSTs to OpenClaw gateway, agent wakes immediately
+- **Simple cron messages** — just `⚡ WIDGET REFRESH: {slug}`, agent looks up instructions
+- **AI summaries need AI** — for recent-emails, YOU generate the summaries, not some API
+- **icalBuddy for iCloud** — `gog calendar` doesn't work for iCloud, use `/opt/homebrew/bin/icalBuddy`
+- **wttr.in for weather** — free, no API key, JSON format: `wttr.in/City?format=j1`
