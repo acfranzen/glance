@@ -924,17 +924,35 @@ All components are pre-imported and available in the widget sandbox. Most compon
 
 #### Card
 
-Container for widget content. Use with `CardHeader`, `CardContent`, `CardFooter`, `CardTitle`, and `CardDescription`.
+Container component available for use within widgets if needed for nested cards or sections.
+
+> **⚠️ Important:** Do NOT wrap your entire widget in a `<Card>`. The framework's `CustomWidgetWrapper` already provides an outer card with:
+> - Widget title header
+> - Refresh button
+> - "Updated X ago" footer
+>
+> Your widget should render **content only** — just a `<div>` with your data, not a Card.
 
 ```tsx
-<Card className="h-full">
-  <CardHeader>
-    <CardTitle>Widget Title</CardTitle>
-    <CardDescription>Optional description</CardDescription>
-  </CardHeader>
-  <CardContent>{/* Main content */}</CardContent>
-  <CardFooter>{/* Optional footer */}</CardFooter>
-</Card>
+// ✅ CORRECT - render content directly
+function Widget({ serverData }) {
+  return (
+    <div className="space-y-3">
+      <p>{serverData.message}</p>
+      <List items={serverData.items} />
+    </div>
+  );
+}
+
+// ❌ WRONG - don't wrap in Card (causes double headers, wastes space)
+function Widget({ serverData }) {
+  return (
+    <Card className="h-full">
+      <CardHeader><CardTitle>Title</CardTitle></CardHeader>
+      <CardContent>...</CardContent>
+    </Card>
+  );
+}
 ```
 
 #### Stack
