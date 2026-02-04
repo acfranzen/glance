@@ -32,7 +32,7 @@ export function Features() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-16 text-center">
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Everything you need to build dashboards
+            See all of your data, in any form you can imagine
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
             Powerful features that let you focus on insights, not configuration.
