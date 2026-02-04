@@ -246,6 +246,8 @@ function Widget({ serverData }) {
   if (loading) return <Loading message="Waiting for data..." />;
   if (error) return <ErrorDisplay message={error} />;
   
+  // NOTE: Do NOT add "Updated at" footer or refresh button - 
+  // the framework adds these automatically via WidgetRefreshFooter
   return (
     <Card className="h-full">
       <CardHeader>
@@ -258,11 +260,6 @@ function Widget({ serverData }) {
           badge: pr.state
         })) || []} />
       </CardContent>
-      {data.fetchedAt && (
-        <div className="text-xs text-muted-foreground p-2">
-          Updated {new Date(data.fetchedAt).toLocaleTimeString()}
-        </div>
-      )}
     </Card>
   );
 }

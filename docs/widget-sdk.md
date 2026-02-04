@@ -922,7 +922,9 @@ All components are pre-imported and available in the widget sandbox. Most compon
 
 #### Card
 
-Container for widget content. Use with `CardHeader`, `CardContent`, `CardFooter`, `CardTitle`, and `CardDescription`.
+Container for widget content. Use with `CardHeader`, `CardContent`, `CardTitle`, and `CardDescription`.
+
+> **Note:** Do NOT add your own "Updated at" footer or refresh button. The framework automatically adds a `WidgetRefreshFooter` with timestamp and refresh functionality for all widgets. Just focus on your widget's content.
 
 ```tsx
 <Card className="h-full">
@@ -931,7 +933,7 @@ Container for widget content. Use with `CardHeader`, `CardContent`, `CardFooter`
     <CardDescription>Optional description</CardDescription>
   </CardHeader>
   <CardContent>{/* Main content */}</CardContent>
-  <CardFooter>{/* Optional footer */}</CardFooter>
+  {/* No CardFooter needed - framework adds refresh footer automatically */}
 </Card>
 ```
 
