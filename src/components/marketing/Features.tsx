@@ -35,7 +35,7 @@ export function Features() {
             See all of your data, in any form you can imagine
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Powerful features that let you focus on insights, not configuration.
+            Describe what you want to see. Your AI handles the rest.
           </p>
         </div>
 
