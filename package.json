@@ -54,6 +54,7 @@
     "@types/react-grid-layout": "^1.3.6",
     "eslint": "^9",
     "eslint-config-next": "15.5.9",
+    "puppeteer": "^24.36.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
