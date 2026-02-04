@@ -26,11 +26,11 @@ if [ ! -f "$SERVICE_TEMPLATE" ]; then
     exit 1
 fi
 
-# Check if pnpm is available and get its path
-PNPM_PATH="$(command -v pnpm 2>/dev/null)"
-if [ -z "$PNPM_PATH" ]; then
-    echo "❌ Error: pnpm is not installed. Please install it first:"
-    echo "   npm install -g pnpm"
+# Check if npm is available and get its path
+NPM_PATH="$(command -v npm 2>/dev/null)"
+if [ -z "$NPM_PATH" ]; then
+    echo "❌ Error: npm is not installed. Please install it first:"
+    echo "   Please ensure Node.js is properly installed"
     exit 1
 fi
 
@@ -42,7 +42,7 @@ if [ ! -f "$GLANCE_DIR/package.json" ]; then
 fi
 
 echo "📁 Glance directory: $GLANCE_DIR"
-echo "📦 pnpm path: $PNPM_PATH"
+echo "📦 npm path: $NPM_PATH"
 echo "📝 Log directory: $LOG_DIR"
 echo ""
 
@@ -63,7 +63,7 @@ fi
 echo "📝 Generating systemd service configuration..."
 sed -e "s|__GLANCE_DIR__|$GLANCE_DIR|g" \
     -e "s|__HOME__|$HOME|g" \
-    -e "s|__PNPM_PATH__|$PNPM_PATH|g" \
+    -e "s|__NPM_PATH__|$NPM_PATH|g" \
     "$SERVICE_TEMPLATE" > "$SYSTEMD_USER_DIR/$SERVICE_NAME"
 
 echo "✅ Installed service to $SYSTEMD_USER_DIR/$SERVICE_NAME"

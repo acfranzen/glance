@@ -66,22 +66,16 @@ if [ "$NODE_VERSION" -lt 18 ]; then
     echo -e "${YELLOW}⚠️  Warning: Node.js v$NODE_VERSION detected. v18+ recommended.${NC}"
 fi
 
-# Check/enable pnpm via corepack
-echo -e "${BLUE}📦 Setting up pnpm...${NC}"
-if ! command -v pnpm &> /dev/null; then
-    echo "   Enabling pnpm via corepack..."
-    if command -v corepack &> /dev/null; then
-        corepack enable pnpm
-    else
-        echo -e "${RED}❌ Error: corepack not available${NC}"
-        echo "Please install pnpm manually:"
-        echo "  npm install -g pnpm"
-        exit 1
-    fi
+# Check npm
+echo -e "${BLUE}📦 Checking npm...${NC}"
+if ! command -v npm &> /dev/null; then
+    echo -e "${RED}❌ Error: npm not found${NC}"
+    echo "npm should be installed with Node.js"
+    exit 1
 fi
 
-PNPM_VERSION=$(pnpm --version)
-echo -e "${GREEN}✅ pnpm v$PNPM_VERSION${NC}"
+NPM_VERSION=$(npm --version)
+echo -e "${GREEN}✅ npm v$NPM_VERSION${NC}"
 
 # Clone or update repository
 if [ -d "$GLANCE_DIR" ]; then
@@ -107,7 +101,7 @@ fi
 # Install dependencies
 echo ""
 echo -e "${BLUE}📦 Installing dependencies...${NC}"
-pnpm install
+npm install
 
 echo ""
 echo -e "${GREEN}✅ Dependencies installed${NC}"
@@ -156,7 +150,7 @@ if [ -z "$SERVICE_INSTALLED" ]; then
     echo ""
     
     # Start in background
-    pnpm dev > /dev/null 2>&1 &
+    npm run dev > /dev/null 2>&1 &
     DEV_PID=$!
     
     echo -e "${GREEN}✅ Glance is starting (PID: $DEV_PID)${NC}"
