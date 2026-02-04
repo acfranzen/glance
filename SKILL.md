@@ -312,20 +312,29 @@ This is NOT an external API or service. YOU must:
 
 ### Step-by-Step for agent_refresh Widgets
 
-1. **Create the widget** with `fetch.type = "agent_refresh"`
-2. **Set up a cron job** targeting YOUR main session:
+1. **Create the widget** with `fetch.type = "agent_refresh"` and detailed `fetch.instructions`
+2. **Set up a cron job** targeting YOUR main session (message is just the slug):
    ```javascript
    cron.add({
      name: "Widget: My Data Refresh",
      schedule: { kind: "cron", expr: "*/15 * * * *" },
      payload: { 
        kind: "systemEvent", 
-       text: "⚡ WIDGET REFRESH: Collect data for my-widget and POST to cache" 
+       text: "⚡ WIDGET REFRESH: my-widget"  // Just the slug!
      },
      sessionTarget: "main"  // Reminds YOU, not an isolated session
    })
    ```
-3. **When the cron fires**, YOU collect the data using your tools:
+3. **When you receive the refresh message**, look up `fetch.instructions` from the DB and spawn a subagent:
+   ```javascript
+   // Parse slug from message
+   const slug = message.replace('⚡ WIDGET REFRESH:', '').trim();
+   // Query widget's fetch.instructions
+   const widget = db.query('SELECT fetch FROM custom_widgets WHERE slug = ?', slug);
+   // Spawn subagent with the instructions
+   sessions_spawn({ task: widget.fetch.instructions, model: 'haiku' });
+   ```
+4. **The subagent collects the data** using your tools:
    - `exec` for shell commands
    - PTY for interactive CLI tools (like `claude /status`)
    - `browser` for web scraping
