@@ -42,29 +42,23 @@ export function Hero() {
       </p>
 
       {/* Install Command */}
-      <div className="mt-10 w-full max-w-3xl">
-        <div className="relative group">
+      <div className="mt-10">
+        <div className="relative group inline-block">
           <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/50 to-primary/30 rounded-lg blur opacity-30 group-hover:opacity-100 transition duration-300" />
-          <div className="relative flex items-center gap-2 rounded-lg border border-primary/20 bg-card/95 backdrop-blur-sm p-4 font-mono text-sm">
-            <code className="flex-1 text-left overflow-x-auto whitespace-nowrap text-foreground">
+          <div className="relative flex items-center gap-3 rounded-lg border border-primary/20 bg-card/95 backdrop-blur-sm px-4 py-3 font-mono text-sm">
+            <code className="text-foreground">
               {installCommand}
             </code>
             <Button
               size="sm"
               variant="ghost"
               onClick={handleCopy}
-              className="shrink-0 gap-2 hover:bg-primary/10"
+              className="shrink-0 gap-2 hover:bg-primary/10 -mr-1"
             >
               {copied ? (
-                <>
-                  <Check className="h-4 w-4 text-green-500" />
-                  <span className="hidden sm:inline">Copied!</span>
-                </>
+                <Check className="h-4 w-4 text-green-500" />
               ) : (
-                <>
-                  <Copy className="h-4 w-4" />
-                  <span className="hidden sm:inline">Copy</span>
-                </>
+                <Copy className="h-4 w-4" />
               )}
             </Button>
           </div>
