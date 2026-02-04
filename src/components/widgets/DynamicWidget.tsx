@@ -4,12 +4,22 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { transpileJSX } from '@/lib/widget-sdk/transpiler';
 import { createWidgetContext, executeWidgetCode } from '@/lib/widget-sdk/context';
 import { Loading, ErrorDisplay } from '@/lib/widget-sdk/components';
+import { WidgetRefreshFooter, type FreshnessStatus } from '@/components/widgets/WidgetRefreshFooter';
 import type { CustomWidgetDefinition, WidgetConfig } from '@/lib/widget-sdk/types';
 
 interface DynamicWidgetProps {
   customWidgetId: string;
   config?: WidgetConfig;
   widgetId: string;
+  // Props for data passed from wrapper (when used with CustomWidgetWrapper)
+  serverData?: unknown;
+  isLoadingServerData?: boolean;
+  fetchedAt?: string | null;
+  freshness?: FreshnessStatus;
+  // Pending refresh state for agent_refresh widgets
+  pendingRefresh?: { requestedAt: string } | null;
+  // Optional pre-fetched definition to avoid duplicate fetch
+  definition?: CustomWidgetDefinition | null;
 }
 
 interface CustomWidgetState {
@@ -39,8 +49,8 @@ class WidgetErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <ErrorDisplay 
-          message={this.state.error?.message || 'Widget crashed'} 
+        <ErrorDisplay
+          message={this.state.error?.message || 'Widget crashed'}
           retry={() => this.setState({ hasError: false, error: null })}
         />
       );
@@ -49,36 +59,53 @@ class WidgetErrorBoundary extends React.Component<
   }
 }
 
-export function DynamicWidget({ customWidgetId, config = {}, widgetId }: DynamicWidgetProps) {
+export function DynamicWidget({
+  customWidgetId,
+  config = {},
+  widgetId,
+  serverData: externalServerData,
+  isLoadingServerData: _isLoadingServerData,
+  fetchedAt,
+  freshness,
+  pendingRefresh,
+  definition: externalDefinition,
+}: DynamicWidgetProps) {
   const [state, setState] = useState<CustomWidgetState>({
-    definition: null,
-    loading: true,
+    definition: externalDefinition ?? null,
+    loading: !externalDefinition,
     error: null,
   });
-  const [serverData, setServerData] = useState<unknown>(null);
-  const [serverDataLoading, setServerDataLoading] = useState(false);
 
-  // Fetch the custom widget definition
+  // Update state if external definition changes
   useEffect(() => {
+    if (externalDefinition) {
+      setState({ definition: externalDefinition, loading: false, error: null });
+    }
+  }, [externalDefinition]);
+
+  // Fetch the custom widget definition only if not provided externally
+  useEffect(() => {
+    if (externalDefinition) return; // Skip fetch if definition provided
+
     let mounted = true;
 
     async function fetchDefinition() {
       try {
-        const response = await fetch(`/api/custom-widgets/${customWidgetId}`);
+        const response = await fetch(`/api/widgets/${customWidgetId}`);
         if (!response.ok) {
           throw new Error(`Failed to fetch widget: ${response.status}`);
         }
         const definition = await response.json() as CustomWidgetDefinition;
-        
+
         if (mounted) {
           setState({ definition, loading: false, error: null });
         }
       } catch (error) {
         if (mounted) {
-          setState({ 
-            definition: null, 
-            loading: false, 
-            error: error instanceof Error ? error : new Error('Unknown error') 
+          setState({
+            definition: null,
+            loading: false,
+            error: error instanceof Error ? error : new Error('Unknown error')
           });
         }
       }
@@ -89,48 +116,12 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
     return () => {
       mounted = false;
     };
-  }, [customWidgetId]);
+  }, [customWidgetId, externalDefinition]);
 
-  // Fetch server data if server_code_enabled
-  useEffect(() => {
-    if (!state.definition?.server_code_enabled || !state.definition?.slug) {
-      return;
-    }
-
-    let mounted = true;
-    setServerDataLoading(true);
-
-    async function fetchServerData() {
-      try {
-        const response = await fetch(`/api/custom-widgets/${state.definition!.slug}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ params: config }),
-        });
-        const result = await response.json();
-        
-        if (mounted) {
-          if (result.error) {
-            setServerData({ error: result.error });
-          } else {
-            setServerData(result.data);
-          }
-          setServerDataLoading(false);
-        }
-      } catch (error) {
-        if (mounted) {
-          setServerData({ error: error instanceof Error ? error.message : 'Failed to fetch server data' });
-          setServerDataLoading(false);
-        }
-      }
-    }
-
-    fetchServerData();
-
-    return () => {
-      mounted = false;
-    };
-  }, [state.definition?.server_code_enabled, state.definition?.slug, config]);
+  // Determine if widget has server-side data
+  const hasServerData = state.definition?.server_code_enabled ||
+    state.definition?.fetch?.type === 'agent_refresh' ||
+    state.definition?.fetch?.type === 'webhook';
 
   // Memoize the transpiled code and widget component
   const { Widget, transpileError } = useMemo(() => {
@@ -141,7 +132,7 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
     try {
       // Use cached compiled code if available, otherwise transpile
       let code = state.definition.compiled_code;
-      
+
       if (!code) {
         const result = transpileJSX(state.definition.source_code);
         if (result.error) {
@@ -161,12 +152,12 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
 
       // Execute the widget code
       const WidgetComponent = executeWidgetCode(code, context);
-      
+
       return { Widget: WidgetComponent, transpileError: null };
     } catch (error) {
-      return { 
-        Widget: null, 
-        transpileError: error instanceof Error ? error : new Error('Failed to create widget') 
+      return {
+        Widget: null,
+        transpileError: error instanceof Error ? error : new Error('Failed to create widget')
       };
     }
   }, [state.definition, config, widgetId]);
@@ -195,27 +186,50 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
     return <ErrorDisplay message="Widget component not available" />;
   }
 
-  // Render the widget with error boundary
+  // Render the widget with error boundary and refresh footer
   return (
-    <WidgetErrorBoundary onError={handleError}>
-      <Widget config={config} serverData={serverData} />
-    </WidgetErrorBoundary>
+    <div className="flex flex-col h-full">
+      <div className="flex-1 min-h-0 overflow-auto">
+        <WidgetErrorBoundary onError={handleError}>
+          <Widget config={config} serverData={externalServerData} />
+        </WidgetErrorBoundary>
+      </div>
+      {hasServerData && (fetchedAt || pendingRefresh) && (
+        <WidgetRefreshFooter
+          fetchedAt={fetchedAt ?? null}
+          freshness={freshness ?? null}
+          queuedAt={pendingRefresh?.requestedAt ?? null}
+        />
+      )}
+    </div>
   );
 }
 
 // Loader component that handles the case where customWidgetId might change
-export function DynamicWidgetLoader({ 
-  customWidgetId, 
+export function DynamicWidgetLoader({
+  customWidgetId,
   config,
-  widgetId 
+  widgetId,
+  serverData,
+  isLoadingServerData,
+  fetchedAt,
+  freshness,
+  pendingRefresh,
+  definition,
 }: DynamicWidgetProps) {
   // Key forces remount when customWidgetId changes
   return (
-    <DynamicWidget 
+    <DynamicWidget
       key={customWidgetId}
-      customWidgetId={customWidgetId} 
+      customWidgetId={customWidgetId}
       config={config}
       widgetId={widgetId}
+      serverData={serverData}
+      isLoadingServerData={isLoadingServerData}
+      fetchedAt={fetchedAt}
+      freshness={freshness}
+      pendingRefresh={pendingRefresh}
+      definition={definition}
     />
   );
 }

@@ -24,6 +24,7 @@ interface LayoutItem {
 interface WidgetState {
   widgets: Widget[];
   layout: LayoutItem[];
+  mobileLayout: LayoutItem[];
   isEditing: boolean;
   isLoading: boolean;
   initialized: boolean;
@@ -31,12 +32,13 @@ interface WidgetState {
 
 interface WidgetActions {
   initialize: () => Promise<void>;
+  refreshWidgets: () => Promise<void>;
   setEditing: (editing: boolean) => void;
   addWidget: (type: WidgetType, title?: string) => Promise<void>;
   addCustomWidget: (customWidgetId: string, title: string, defaultSize?: { w: number; h: number }) => Promise<void>;
   removeWidget: (widgetId: string) => Promise<void>;
   updateWidget: (widgetId: string, updates: Partial<Widget>) => Promise<void>;
-  updateLayout: (layout: LayoutItem[]) => Promise<void>;
+  updateLayout: (layout: LayoutItem[], isMobile?: boolean) => Promise<void>;
   reset: () => void;
 }
 
@@ -50,6 +52,7 @@ const DEFAULT_SIZES: Record<string, { w: number; h: number; minW: number; minH: 
 export const useWidgetStore = create<WidgetStore>()((set, get) => ({
   widgets: [],
   layout: [],
+  mobileLayout: [],
   isEditing: false,
   isLoading: false,
   initialized: false,
@@ -60,13 +63,13 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
     set({ isLoading: true });
 
     try {
-      const response = await fetch('/api/widgets');
+      const response = await fetch('/api/widgets/instances');
       if (!response.ok) throw new Error('Failed to fetch widgets');
-      
+
       const data = await response.json();
       const widgets: Widget[] = data.widgets || [];
-      
-      // Build layout from widget positions
+
+      // Build desktop layout from widget positions
       const layout: LayoutItem[] = widgets.map((w: Widget) => ({
         i: w.id,
         x: w.position?.x || 0,
@@ -77,9 +80,24 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
         minH: DEFAULT_SIZES[w.type]?.minH || 2,
       }));
 
+      // Build mobile layout from mobilePosition (or generate defaults)
+      const mobileLayout: LayoutItem[] = widgets.map((w: Widget, index: number) => {
+        const mobilePos = w.mobilePosition;
+        return {
+          i: w.id,
+          x: mobilePos?.x ?? 0,
+          y: mobilePos?.y ?? index * 2,
+          w: mobilePos?.w ?? 2, // 2 columns on mobile grid
+          h: mobilePos?.h ?? Math.max(w.position?.h || 2, 2),
+          minW: 1,
+          minH: 2,
+        };
+      });
+
       set({
         widgets,
         layout,
+        mobileLayout,
         initialized: true,
         isLoading: false,
       });
@@ -89,19 +107,67 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
     }
   },
 
+  refreshWidgets: async () => {
+    set({ isLoading: true });
+
+    try {
+      const response = await fetch('/api/widgets/instances');
+      if (!response.ok) throw new Error('Failed to fetch widgets');
+      
+      const data = await response.json();
+      const widgets: Widget[] = data.widgets || [];
+      
+      // Build desktop layout from widget positions
+      const layout: LayoutItem[] = widgets.map((w: Widget) => ({
+        i: w.id,
+        x: w.position?.x || 0,
+        y: w.position?.y || 0,
+        w: w.position?.w || DEFAULT_SIZES[w.type]?.w || 3,
+        h: w.position?.h || DEFAULT_SIZES[w.type]?.h || 2,
+        minW: DEFAULT_SIZES[w.type]?.minW || 2,
+        minH: DEFAULT_SIZES[w.type]?.minH || 2,
+      }));
+
+      // Build mobile layout from mobilePosition (or generate defaults)
+      const mobileLayout: LayoutItem[] = widgets.map((w: Widget, index: number) => {
+        const mobilePos = w.mobilePosition;
+        return {
+          i: w.id,
+          x: mobilePos?.x ?? 0,
+          y: mobilePos?.y ?? index * 2,
+          w: mobilePos?.w ?? 2,
+          h: mobilePos?.h ?? Math.max(w.position?.h || 2, 2),
+          minW: 1,
+          minH: 2,
+        };
+      });
+
+      set({
+        widgets,
+        layout,
+        mobileLayout,
+        isLoading: false,
+      });
+    } catch (error) {
+      console.error('Failed to refresh widgets:', error);
+      set({ isLoading: false });
+    }
+  },
+
   setEditing: (editing: boolean) => {
     set({ isEditing: editing });
   },
 
   addWidget: async (type, title) => {
-    const { layout } = get();
+    const { layout, mobileLayout } = get();
     const sizes = DEFAULT_SIZES[type] || { w: 3, h: 2, minW: 2, minH: 2 };
     
     // Find the lowest y position to place new widget at bottom
-    const maxY = layout.reduce((max, item) => Math.max(max, item.y + item.h), 0);
+    const maxY = layout.reduce((max: number, item: LayoutItem) => Math.max(max, item.y + item.h), 0);
+    const maxMobileY = mobileLayout.reduce((max: number, item: LayoutItem) => Math.max(max, item.y + item.h), 0);
 
     try {
-      const response = await fetch('/api/widgets', {
+      const response = await fetch('/api/widgets/instances', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -126,9 +192,20 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
         minH: sizes.minH,
       };
 
+      const newMobileLayoutItem: LayoutItem = {
+        i: widget.id,
+        x: 0,
+        y: maxMobileY,
+        w: 2,
+        h: Math.max(sizes.h, 2),
+        minW: 1,
+        minH: 2,
+      };
+
       set((state) => ({
         widgets: [...state.widgets, widget],
         layout: [...state.layout, newLayoutItem],
+        mobileLayout: [...state.mobileLayout, newMobileLayoutItem],
       }));
     } catch (error) {
       console.error('Failed to add widget:', error);
@@ -136,16 +213,18 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
   },
 
   addCustomWidget: async (customWidgetId, title, defaultSize) => {
-    const { layout } = get();
+    const { layout, mobileLayout } = get();
     const sizes = defaultSize 
       ? { ...defaultSize, minW: 2, minH: 2 } 
       : DEFAULT_SIZES.custom;
     
-    // Find the lowest y position to place new widget at bottom
-    const maxY = layout.reduce((max, item) => Math.max(max, item.y + item.h), 0);
+    // Find the lowest y position to place new widget at bottom (desktop)
+    const maxY = layout.reduce((max: number, item: LayoutItem) => Math.max(max, item.y + item.h), 0);
+    // For mobile, stack at bottom
+    const maxMobileY = mobileLayout.reduce((max: number, item: LayoutItem) => Math.max(max, item.y + item.h), 0);
 
     try {
-      const response = await fetch('/api/widgets', {
+      const response = await fetch('/api/widgets/instances', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -171,9 +250,20 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
         minH: sizes.minH,
       };
 
+      const newMobileLayoutItem: LayoutItem = {
+        i: widget.id,
+        x: 0,
+        y: maxMobileY,
+        w: 2,
+        h: Math.max(sizes.h, 2),
+        minW: 1,
+        minH: 2,
+      };
+
       set((state) => ({
         widgets: [...state.widgets, widget],
         layout: [...state.layout, newLayoutItem],
+        mobileLayout: [...state.mobileLayout, newMobileLayoutItem],
       }));
     } catch (error) {
       console.error('Failed to add custom widget:', error);
@@ -183,7 +273,7 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
 
   removeWidget: async (widgetId: string) => {
     try {
-      const response = await fetch(`/api/widgets/${widgetId}`, {
+      const response = await fetch(`/api/widgets/instances/${widgetId}`, {
         method: 'DELETE',
       });
 
@@ -191,7 +281,8 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
 
       set((state) => ({
         widgets: state.widgets.filter((w) => w.id !== widgetId),
-        layout: state.layout.filter((l) => l.i !== widgetId),
+        layout: state.layout.filter((l: LayoutItem) => l.i !== widgetId),
+        mobileLayout: state.mobileLayout.filter((l: LayoutItem) => l.i !== widgetId),
       }));
     } catch (error) {
       console.error('Failed to remove widget:', error);
@@ -200,7 +291,7 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
 
   updateWidget: async (widgetId: string, updates: Partial<Widget>) => {
     try {
-      const response = await fetch(`/api/widgets/${widgetId}`, {
+      const response = await fetch(`/api/widgets/instances/${widgetId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -220,8 +311,13 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
     }
   },
 
-  updateLayout: async (newLayout: LayoutItem[]) => {
-    set({ layout: newLayout });
+  updateLayout: async (newLayout: LayoutItem[], isMobile: boolean = false) => {
+    // Update local state
+    if (isMobile) {
+      set({ mobileLayout: newLayout });
+    } else {
+      set({ layout: newLayout });
+    }
 
     // Update each widget's position in the backend
     const { widgets } = get();
@@ -231,10 +327,13 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
       if (widget) {
         const position: Position = { x: item.x, y: item.y, w: item.w, h: item.h };
         try {
-          await fetch(`/api/widgets/${widget.id}`, {
+          const body = isMobile 
+            ? { mobilePosition: position }
+            : { position };
+          await fetch(`/api/widgets/instances/${widget.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ position }),
+            body: JSON.stringify(body),
           });
         } catch (error) {
           console.error('Failed to save layout:', error);
@@ -247,6 +346,7 @@ export const useWidgetStore = create<WidgetStore>()((set, get) => ({
     set({
       widgets: [],
       layout: [],
+      mobileLayout: [],
       isEditing: false,
       isLoading: false,
       initialized: false,
