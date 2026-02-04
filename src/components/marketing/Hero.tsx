@@ -88,7 +88,7 @@ export function Hero() {
       </p>
 
       {/* Dashboard Preview - Full Width */}
-      <div className="mt-20 w-full max-w-7xl px-6">
+      <div className="mt-20 w-full max-w-[95rem] px-4 sm:px-6 lg:px-8">
         <div className="relative">
           {/* Shadow glow effect */}
           <div className="absolute -inset-4 bg-primary/5 blur-3xl rounded-3xl" />
