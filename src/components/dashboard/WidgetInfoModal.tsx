@@ -543,7 +543,7 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
                   <Database className="h-5 w-5 mb-1" />
                   <span className="text-xs">Data Schema</span>
                   <span className="text-[10px] text-muted-foreground">
-                    {info.data_schema ? 'JSON Schema' : 'None'}
+                    {info.data_schema ? `${countLines(JSON.stringify(info.data_schema, null, 2))} lines` : 'None'}
                   </span>
                 </Button>
               </div>
