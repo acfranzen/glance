@@ -72,11 +72,21 @@ export async function POST(
     
     if (webhookUrl && webhookToken) {
       try {
+        const refreshInstructions = [
+          `⚡ WIDGET REFRESH REQUEST: ${slug}`,
+          '',
+          'BEFORE spawning a subagent, you MUST read the widget config:',
+          `  curl -s -H "Origin: http://localhost:3333" "http://localhost:3333/api/widgets/${slug}" | jq .fetch`,
+          '',
+          'The fetch.instructions field contains the EXACT commands to run.',
+          'Do NOT assume or guess the data source. READ THE INSTRUCTIONS.',
+        ].join('\n');
+
         const payload = JSON.stringify({
           tool: 'cron',
           args: {
             action: 'wake',
-            text: `⚡ WIDGET REFRESH: ${slug}`,
+            text: refreshInstructions,
             mode: 'now'
           }
         });
