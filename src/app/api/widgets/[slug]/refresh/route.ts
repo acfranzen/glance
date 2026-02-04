@@ -71,7 +71,7 @@ export async function POST(
 
     if (gatewayUrl && gatewayToken) {
       try {
-        await fetch(`${gatewayUrl}/api/sessions/wake`, {
+        const response = await fetch(`${gatewayUrl}/api/sessions/wake`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${gatewayToken}`,
@@ -82,9 +82,13 @@ export async function POST(
             mode: 'now'
           })
         });
-        webhookSent = true;
+        // Only mark as sent if response was successful (2xx)
+        webhookSent = response.ok;
+        if (!response.ok) {
+          console.error(`OpenClaw webhook failed: ${response.status} ${response.statusText}`);
+        }
       } catch (e) {
-        // Silently fail - agent will pick it up on next heartbeat
+        // Network failure - agent will pick it up on next heartbeat
         console.error('Failed to notify OpenClaw:', e);
       }
     }
