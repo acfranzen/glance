@@ -16,6 +16,8 @@ interface DynamicWidgetProps {
   isLoadingServerData?: boolean;
   fetchedAt?: string | null;
   freshness?: FreshnessStatus;
+  // Pending refresh state for agent_refresh widgets
+  pendingRefresh?: { requestedAt: string } | null;
   // Optional pre-fetched definition to avoid duplicate fetch
   definition?: CustomWidgetDefinition | null;
 }
@@ -65,6 +67,7 @@ export function DynamicWidget({
   isLoadingServerData: _isLoadingServerData,
   fetchedAt,
   freshness,
+  pendingRefresh,
   definition: externalDefinition,
 }: DynamicWidgetProps) {
   const [state, setState] = useState<CustomWidgetState>({
@@ -191,8 +194,12 @@ export function DynamicWidget({
           <Widget config={config} serverData={externalServerData} />
         </WidgetErrorBoundary>
       </div>
-      {hasServerData && fetchedAt && (
-        <WidgetRefreshFooter fetchedAt={fetchedAt} freshness={freshness ?? null} />
+      {hasServerData && (fetchedAt || pendingRefresh) && (
+        <WidgetRefreshFooter
+          fetchedAt={fetchedAt ?? null}
+          freshness={pendingRefresh ? 'queued' : (freshness ?? null)}
+          queuedAt={pendingRefresh?.requestedAt ?? null}
+        />
       )}
     </div>
   );
@@ -207,6 +214,7 @@ export function DynamicWidgetLoader({
   isLoadingServerData,
   fetchedAt,
   freshness,
+  pendingRefresh,
   definition,
 }: DynamicWidgetProps) {
   // Key forces remount when customWidgetId changes
@@ -220,6 +228,7 @@ export function DynamicWidgetLoader({
       isLoadingServerData={isLoadingServerData}
       fetchedAt={fetchedAt}
       freshness={freshness}
+      pendingRefresh={pendingRefresh}
       definition={definition}
     />
   );

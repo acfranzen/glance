@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Info, Settings, Download, RefreshCw, Loader2 } from 'lucide-react';
+import { MoreVertical, Info, Settings, Download, RefreshCw, Loader2, Clock } from 'lucide-react';
 import { useWidgetData } from '@/hooks/useWidgetData';
 import type { Widget } from '@/types/api';
 import type { CustomWidgetDefinition } from '@/lib/widget-sdk/types';
@@ -54,7 +54,7 @@ export function CustomWidgetWrapper({
   }, [widget.custom_widget_id]);
 
   // Get widget data with refresh capability
-  const { data, isLoading, fetchedAt, freshness, refresh, isRefreshing } = useWidgetData(
+  const { data, isLoading, fetchedAt, freshness, refresh, isRefreshing, isRefreshQueued, pendingRefresh } = useWidgetData(
     definition,
     widget.id,
     widget.config
@@ -78,11 +78,13 @@ export function CustomWidgetWrapper({
               size="icon"
               className="h-7 w-7"
               onClick={refresh}
-              disabled={isRefreshing}
-              title="Refresh widget data"
+              disabled={isRefreshing || isRefreshQueued}
+              title={isRefreshQueued ? "Refresh queued - waiting for agent" : "Refresh widget data"}
             >
               {isRefreshing ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : isRefreshQueued ? (
+                <Clock className="h-3.5 w-3.5 text-yellow-500" />
               ) : (
                 <RefreshCw className="h-3.5 w-3.5" />
               )}
@@ -128,6 +130,7 @@ export function CustomWidgetWrapper({
           isLoadingServerData={isLoading}
           fetchedAt={fetchedAt}
           freshness={freshness}
+          pendingRefresh={pendingRefresh}
           definition={definition}
         />
       )}

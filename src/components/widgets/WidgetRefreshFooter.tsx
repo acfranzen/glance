@@ -3,25 +3,29 @@
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
-export type FreshnessStatus = 'fresh' | 'stale' | 'expired' | null;
+export type FreshnessStatus = 'fresh' | 'stale' | 'expired' | 'queued' | null;
 
 interface WidgetRefreshFooterProps {
   fetchedAt: string | null;
   freshness: FreshnessStatus;
+  queuedAt?: string | null;
 }
 
-export function WidgetRefreshFooter({ fetchedAt, freshness }: WidgetRefreshFooterProps) {
-  if (!fetchedAt) {
+export function WidgetRefreshFooter({ fetchedAt, freshness, queuedAt }: WidgetRefreshFooterProps) {
+  // Show queued state even without fetchedAt
+  if (!fetchedAt && !queuedAt) {
     return null;
   }
 
-  const timeAgo = formatDistanceToNow(new Date(fetchedAt), { addSuffix: true });
+  const timeAgo = fetchedAt ? formatDistanceToNow(new Date(fetchedAt), { addSuffix: true }) : null;
+  const queuedTimeAgo = queuedAt ? formatDistanceToNow(new Date(queuedAt), { addSuffix: true }) : null;
 
   // Freshness indicator colors
   const freshnessColors: Record<string, string> = {
     fresh: 'bg-green-500',
     stale: 'bg-yellow-500',
     expired: 'bg-red-500',
+    queued: 'bg-yellow-500 animate-pulse',
   };
 
   const freshnessColor = freshness ? freshnessColors[freshness] : 'bg-muted-foreground';
@@ -33,7 +37,11 @@ export function WidgetRefreshFooter({ fetchedAt, freshness }: WidgetRefreshFoote
         title={freshness ? `Data is ${freshness}` : 'Unknown freshness'}
       />
       <span className="text-[10px] text-muted-foreground truncate">
-        Updated {timeAgo}
+        {queuedAt ? (
+          <>Refreshing... (queued {queuedTimeAgo})</>
+        ) : (
+          <>Updated {timeAgo}</>
+        )}
       </span>
     </div>
   );

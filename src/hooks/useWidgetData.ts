@@ -12,6 +12,8 @@ export interface UseWidgetDataResult {
   freshness: FreshnessStatus;
   refresh: () => Promise<void>;
   isRefreshing: boolean;
+  pendingRefresh: { requestedAt: string } | null;
+  isRefreshQueued: boolean;
 }
 
 interface FetchConfig {
@@ -156,6 +158,12 @@ export function useWidgetData(
   const fetchedAt = cacheResponse?.cachedAt || cacheResponse?.fetched_at || null;
   const freshness: FreshnessStatus = cacheResponse?.freshness || null;
 
+  // Extract pending refresh state from cache response
+  const pendingRefresh = cacheResponse?.pending_refresh
+    ? { requestedAt: cacheResponse.pending_refresh.requested_at }
+    : null;
+  const isRefreshQueued = !!pendingRefresh;
+
   return {
     data,
     isLoading: cacheLoading,
@@ -163,5 +171,7 @@ export function useWidgetData(
     freshness,
     refresh,
     isRefreshing,
+    pendingRefresh,
+    isRefreshQueued,
   };
 }
