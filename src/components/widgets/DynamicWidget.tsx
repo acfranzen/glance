@@ -1,10 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import useSWR from 'swr';
 import { transpileJSX } from '@/lib/widget-sdk/transpiler';
 import { createWidgetContext, executeWidgetCode } from '@/lib/widget-sdk/context';
 import { Loading, ErrorDisplay } from '@/lib/widget-sdk/components';
 import type { CustomWidgetDefinition, WidgetConfig } from '@/lib/widget-sdk/types';
+
+// SWR fetcher
+const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 interface DynamicWidgetProps {
   customWidgetId: string;
@@ -55,9 +59,6 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
     loading: true,
     error: null,
   });
-  const [serverData, setServerData] = useState<unknown>(null);
-  const [serverDataLoading, setServerDataLoading] = useState(false);
-
   // Fetch the custom widget definition
   useEffect(() => {
     let mounted = true;
@@ -91,71 +92,74 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
     };
   }, [customWidgetId]);
 
-  // Fetch server data based on widget type
-  useEffect(() => {
-    if (!state.definition?.slug) {
-      return;
+  // Determine fetch type and URL for server data
+  const fetchConfig = state.definition?.fetch ? 
+    (typeof state.definition.fetch === 'string' ? JSON.parse(state.definition.fetch) : state.definition.fetch) 
+    : null;
+  const isAgentRefresh = fetchConfig?.type === 'agent_refresh';
+  const hasServerCode = state.definition?.server_code_enabled;
+  const shouldFetchData = state.definition?.slug && (isAgentRefresh || hasServerCode);
+  
+  // Build the cache URL for agent_refresh widgets
+  const cacheUrl = shouldFetchData && isAgentRefresh 
+    ? `/api/widgets/${state.definition!.slug}/cache` 
+    : null;
+
+  // Use SWR for polling agent_refresh widgets (default 30s, or widget's refresh_interval)
+  const refreshInterval = state.definition?.refresh_interval 
+    ? Math.min(state.definition.refresh_interval * 1000, 30000) // Cap at 30s for responsiveness
+    : 30000;
+  
+  const { data: swrData, isLoading: swrLoading } = useSWR(
+    cacheUrl,
+    fetcher,
+    { 
+      refreshInterval,
+      revalidateOnFocus: true,
+      dedupingInterval: 5000,
     }
+  );
 
-    // Parse fetch config to determine widget type
-    const fetchConfig = state.definition.fetch ? 
-      (typeof state.definition.fetch === 'string' ? JSON.parse(state.definition.fetch) : state.definition.fetch) 
-      : null;
-    
-    const isAgentRefresh = fetchConfig?.type === 'agent_refresh';
-    const hasServerCode = state.definition.server_code_enabled;
-
-    // Skip if neither agent_refresh nor server_code
-    if (!isAgentRefresh && !hasServerCode) {
+  // For server_code widgets, use manual fetch (they need POST with params)
+  const [serverCodeData, setServerCodeData] = useState<unknown>(null);
+  const [serverCodeLoading, setServerCodeLoading] = useState(false);
+  
+  useEffect(() => {
+    if (!shouldFetchData || isAgentRefresh || !state.definition?.slug) {
       return;
     }
 
     let mounted = true;
-    setServerDataLoading(true);
+    setServerCodeLoading(true);
 
-    async function fetchServerData() {
+    async function fetchServerCode() {
       try {
-        let response: Response;
-        
-        if (isAgentRefresh) {
-          // For agent_refresh widgets, GET from /cache endpoint
-          response = await fetch(`/api/widgets/${state.definition!.slug}/cache`);
-        } else {
-          // For server_code widgets, POST to /execute endpoint
-          response = await fetch(`/api/widgets/${state.definition!.slug}/execute`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ params: config }),
-          });
-        }
-        
+        const response = await fetch(`/api/widgets/${state.definition!.slug}/execute`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ params: config }),
+        });
         const result = await response.json();
         
         if (mounted) {
-          if (result.error) {
-            setServerData({ error: result.error });
-          } else if (isAgentRefresh) {
-            // For agent_refresh, data is nested with metadata
-            setServerData(result.data);
-          } else {
-            setServerData(result.data);
-          }
-          setServerDataLoading(false);
+          setServerCodeData(result.error ? { error: result.error } : result.data);
+          setServerCodeLoading(false);
         }
       } catch (error) {
         if (mounted) {
-          setServerData({ error: error instanceof Error ? error.message : 'Failed to fetch server data' });
-          setServerDataLoading(false);
+          setServerCodeData({ error: error instanceof Error ? error.message : 'Failed to fetch server data' });
+          setServerCodeLoading(false);
         }
       }
     }
 
-    fetchServerData();
+    fetchServerCode();
+    return () => { mounted = false; };
+  }, [shouldFetchData, isAgentRefresh, state.definition?.slug, config]);
 
-    return () => {
-      mounted = false;
-    };
-  }, [state.definition?.server_code_enabled, state.definition?.slug, state.definition?.fetch, config, widgetId]);
+  // Combine server data from SWR (agent_refresh) or manual fetch (server_code)
+  const serverData = isAgentRefresh ? swrData?.data : serverCodeData;
+  const serverDataLoading = isAgentRefresh ? swrLoading : serverCodeLoading;
 
   // Memoize the transpiled code and widget component
   const { Widget, transpileError } = useMemo(() => {
