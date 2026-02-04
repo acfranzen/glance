@@ -750,10 +750,64 @@ To summarize dashboard for user:
 | `OPENCLAW_GATEWAY_URL` | For webhook refresh notifications | `https://localhost:18789` |
 | `OPENCLAW_TOKEN` | Gateway auth token | `d551fe97...` |
 
+## Agent Refresh Patterns
+
+**⚠️ CRITICAL: If a widget worked before, a working method EXISTS. Don't give up — investigate.**
+
+### 1. Always Check fetch.instructions First
+
+Every agent_refresh widget stores its refresh method in the database:
+
+```bash
+sqlite3 $GLANCE_DATA/glance.db "SELECT json_extract(fetch, '$.instructions') FROM custom_widgets WHERE slug = 'my-widget'"
+```
+
+**Follow those instructions exactly.** They're the source of truth.
+
+### 2. Common Data Collection Patterns
+
+| Pattern | When to Use | Example |
+|---------|-------------|---------|
+| **CLI tool** | Data from installed software | `gh pr list`, `gog gmail list`, `brew list` |
+| **PTY capture** | Interactive CLI with no API | `echo "/status" \| some-cli 2>&1` |
+| **HTTP API** | External service with API | `curl -s "api.example.com/data"` |
+| **Local file** | Data written by another process | `cat ~/.cache/some-app/data.json` |
+
+### 3. PTY Capture for Interactive CLIs
+
+Some tools only expose data via interactive commands (no API, no simple CLI flag):
+
+```bash
+# Pattern: pipe command to interactive CLI, capture output
+echo "/status" | some-cli 2>&1 | head -100
+
+# Or use expect/pty for complex interactions
+```
+
+**Key insight:** If a CLI has an interactive REPL with commands like `/status`, `/info`, etc., you often need PTY capture — not a simple flag.
+
+### 4. When Data Isn't Where You Expect
+
+If the obvious data source doesn't have what you need:
+1. **Check the widget's data_schema** — what format does it actually expect?
+2. **Look for alternative sources** — cache files, config files, API endpoints
+3. **Test interactively** — sometimes the data only appears in interactive mode
+4. **Read the tool's docs** — there may be an undocumented flag or file
+
+### 5. Don't Just Mark as Processed
+
+**NEVER** mark a refresh request as processed without actually refreshing the cache. If you can't figure out how to get the data:
+1. Document what you tried
+2. Escalate or ask for help
+3. Leave the request pending so someone else can try
+
+---
+
 ## Learnings (Feb 2026)
 
 - **Webhook refresh works** — Glance POSTs to OpenClaw gateway, agent wakes immediately
 - **Simple cron messages** — just `⚡ WIDGET REFRESH: {slug}`, agent looks up instructions
-- **AI summaries need AI** — for recent-emails, YOU generate the summaries, not some API
-- **icalBuddy for iCloud** — `gog calendar` doesn't work for iCloud, use `/opt/homebrew/bin/icalBuddy`
+- **fetch.instructions is authoritative** — always check the widget's stored instructions first
+- **PTY for interactive CLIs** — if data only shows in interactive mode, use PTY capture
+- **DON'T GIVE UP ON REFRESH** — if a widget worked before, the method exists. Investigate, don't just mark as "processed"
 - **wttr.in for weather** — free, no API key, JSON format: `wttr.in/City?format=j1`
