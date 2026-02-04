@@ -2378,6 +2378,143 @@ interface ErrorConfig {
 }
 ```
 
+### Data Schema Validation
+
+Widgets can define a `data_schema` field to enforce strict validation of cached data. This is especially useful for `agent_refresh` widgets where an AI agent pushes data to the cache endpoint.
+
+**Benefits:**
+- Ensures agents push correctly structured data
+- Provides clear error messages when data doesn't match expectations
+- Documents the expected data format for the widget
+- Prevents widget rendering errors from malformed data
+
+**Schema Format:** Uses a subset of JSON Schema:
+
+```typescript
+interface DataSchema {
+  type: "object";                              // Root must be object
+  properties?: Record<string, {
+    type: string;                              // "string", "number", "boolean", "array", "object"
+    description?: string;                      // Human/AI readable description
+    format?: "date-time";                      // For string validation
+    items?: { ... };                           // For array element schema
+    properties?: { ... };                      // For nested objects
+    required?: string[];                       // Required nested fields
+  }>;
+  required?: string[];                         // Required top-level fields
+}
+```
+
+**Example: Claude Usage Widget Schema**
+
+```json
+{
+  "data_schema": {
+    "type": "object",
+    "properties": {
+      "session": { "type": "string", "description": "Session usage %, e.g. '45%'" },
+      "sessionResets": { "type": "string", "description": "Reset time, e.g. '7pm'" },
+      "weekAll": { "type": "string", "description": "Week all-models usage %" },
+      "weekSonnet": { "type": "string", "description": "Week Sonnet usage %" },
+      "extra": { "type": "string", "description": "Extra usage %" },
+      "extraSpent": { "type": "string", "description": "Spend string, e.g. '$12 / $20'" },
+      "fetchedAt": { "type": "string", "format": "date-time" }
+    },
+    "required": ["session", "weekAll", "fetchedAt"]
+  }
+}
+```
+
+**Example: PR List Widget Schema**
+
+```json
+{
+  "data_schema": {
+    "type": "object",
+    "properties": {
+      "libra": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "number": { "type": "number" },
+            "title": { "type": "string" },
+            "url": { "type": "string" },
+            "createdAt": { "type": "string" }
+          }
+        }
+      },
+      "glance": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "number": { "type": "number" },
+            "title": { "type": "string" },
+            "url": { "type": "string" },
+            "createdAt": { "type": "string" }
+          }
+        }
+      },
+      "fetchedAt": { "type": "string", "format": "date-time" }
+    },
+    "required": ["libra", "glance", "fetchedAt"]
+  }
+}
+```
+
+**Validation Behavior:**
+
+When data is POSTed to `/api/widgets/{slug}/cache`:
+
+1. If widget has a `data_schema`, validate incoming data against it
+2. On validation failure, return 400 with detailed error:
+   ```json
+   {
+     "error": "Data validation failed against widget schema",
+     "validation_errors": ["session: expected string, got number", "missing required field \"fetchedAt\""],
+     "expected_schema": { ... }
+   }
+   ```
+3. On success, cache the data normally
+
+**Adding Schema via API:**
+
+```http
+PATCH /api/widgets/{slug}
+Content-Type: application/json
+
+{
+  "data_schema": {
+    "type": "object",
+    "properties": {
+      "count": { "type": "number" },
+      "fetchedAt": { "type": "string", "format": "date-time" }
+    },
+    "required": ["count", "fetchedAt"]
+  }
+}
+```
+
+**Schema in Widget Package:**
+
+When exporting/importing widgets, the schema is included:
+
+```json
+{
+  "version": 1,
+  "type": "glance-widget",
+  "meta": { ... },
+  "widget": { ... },
+  "fetch": { "type": "agent_refresh", ... },
+  "data_schema": {
+    "type": "object",
+    "properties": { ... },
+    "required": [ ... ]
+  }
+}
+```
+
 ### Complete Examples
 
 #### Example 1: Server Code Widget (GitHub PRs)

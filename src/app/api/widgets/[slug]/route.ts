@@ -98,6 +98,7 @@ export async function PATCH(
     const fetch = body.fetch !== undefined ? body.fetch : existing.fetch;
     const cache = body.cache !== undefined ? body.cache : existing.cache;
     const author = body.author !== undefined ? body.author : existing.author;
+    const data_schema = body.data_schema !== undefined ? body.data_schema : existing.data_schema;
 
     // Validate server code if provided and enabled
     if (serverCode && serverCodeEnabled) {
@@ -128,7 +129,8 @@ export async function PATCH(
       setup,
       fetch,
       cache,
-      author
+      author,
+      data_schema
     );
 
     // Fetch and return the updated widget

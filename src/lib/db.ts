@@ -177,6 +177,19 @@ function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_widget_data_cache_expires ON widget_data_cache(expires_at);
   `);
 
+  // Migration: Add data_schema column to custom_widgets for JSON Schema validation
+  {
+    const tableInfo = _db.prepare("PRAGMA table_info(custom_widgets)").all() as Array<{
+      name: string;
+    }>;
+    const hasDataSchema = tableInfo.some(
+      (col) => col.name === "data_schema",
+    );
+    if (!hasDataSchema) {
+      _db.exec(`ALTER TABLE custom_widgets ADD COLUMN data_schema TEXT`);
+    }
+  }
+
   return _db;
 }
 
@@ -240,6 +253,7 @@ export interface CustomWidgetRow {
   fetch: string;
   cache: string | null;
   author: string | null;
+  data_schema: string | null;
 }
 
 export interface WidgetSetupRow {
@@ -337,12 +351,12 @@ function createStatements(db: Database.Database) {
       "SELECT * FROM custom_widgets WHERE slug = ?",
     ),
     insertCustomWidget: db.prepare(`
-      INSERT INTO custom_widgets (id, name, slug, description, source_code, compiled_code, default_size, min_size, data_providers, refresh_interval, enabled, server_code, server_code_enabled, credentials, setup, fetch, cache, author)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO custom_widgets (id, name, slug, description, source_code, compiled_code, default_size, min_size, data_providers, refresh_interval, enabled, server_code, server_code_enabled, credentials, setup, fetch, cache, author, data_schema)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `),
     updateCustomWidget: db.prepare(`
       UPDATE custom_widgets
-      SET name = ?, description = ?, source_code = ?, compiled_code = ?, default_size = ?, min_size = ?, data_providers = ?, refresh_interval = ?, enabled = ?, server_code = ?, server_code_enabled = ?, credentials = ?, setup = ?, fetch = ?, cache = ?, author = ?, updated_at = datetime('now')
+      SET name = ?, description = ?, source_code = ?, compiled_code = ?, default_size = ?, min_size = ?, data_providers = ?, refresh_interval = ?, enabled = ?, server_code = ?, server_code_enabled = ?, credentials = ?, setup = ?, fetch = ?, cache = ?, author = ?, data_schema = ?, updated_at = datetime('now')
       WHERE id = ?
     `),
     deleteCustomWidget: db.prepare("DELETE FROM custom_widgets WHERE id = ?"),
@@ -604,6 +618,23 @@ export interface ErrorConfig {
 }
 
 // Custom Widget functions
+// JSON Schema type for data validation
+export interface DataSchema {
+  type: string;
+  properties?: Record<string, DataSchemaProperty>;
+  required?: string[];
+  additionalProperties?: boolean;
+}
+
+export interface DataSchemaProperty {
+  type: string;
+  description?: string;
+  format?: string;
+  items?: DataSchemaProperty;
+  properties?: Record<string, DataSchemaProperty>;
+  required?: string[];
+}
+
 export interface CustomWidget {
   id: string;
   name: string;
@@ -627,6 +658,8 @@ export interface CustomWidget {
   cache: CacheConfig | null;
   author: string | null;
   error?: ErrorConfig;
+  // Data validation schema (JSON Schema format)
+  data_schema: DataSchema | null;
 }
 
 export interface WidgetSetup {
@@ -662,6 +695,7 @@ function rowToCustomWidget(row: CustomWidgetRow): CustomWidget {
     fetch: row.fetch ? JSON.parse(row.fetch) : { type: "server_code" },
     cache: row.cache ? JSON.parse(row.cache) : null,
     author: row.author,
+    data_schema: row.data_schema ? JSON.parse(row.data_schema) : null,
   };
 }
 
@@ -718,6 +752,7 @@ export function createCustomWidget(
   fetch: FetchConfig = { type: "server_code" },
   cache: CacheConfig | null = null,
   author: string | null = null,
+  data_schema: DataSchema | null = null,
 ): void {
   getStmts().insertCustomWidget.run(
     id,
@@ -738,6 +773,7 @@ export function createCustomWidget(
     JSON.stringify(fetch),
     cache ? JSON.stringify(cache) : null,
     author,
+    data_schema ? JSON.stringify(data_schema) : null,
   );
   logEvent("custom_widget_created", { id, name, slug });
 }
@@ -760,6 +796,7 @@ export function updateCustomWidget(
   fetch: FetchConfig = { type: "server_code" },
   cache: CacheConfig | null = null,
   author: string | null = null,
+  data_schema: DataSchema | null = null,
 ): void {
   getStmts().updateCustomWidget.run(
     name,
@@ -778,6 +815,7 @@ export function updateCustomWidget(
     JSON.stringify(fetch),
     cache ? JSON.stringify(cache) : null,
     author,
+    data_schema ? JSON.stringify(data_schema) : null,
     id,
   );
   logEvent("custom_widget_updated", { id, name });

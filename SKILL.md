@@ -27,6 +27,7 @@ Widget Package
 ├── meta (name, slug, description, author, version)
 ├── widget (source_code, default_size, min_size)
 ├── fetch (server_code | webhook | agent_refresh)
+├── dataSchema? (JSON Schema for cached data - validates on POST)
 ├── cache (ttl, staleness, fallback)
 ├── credentials[] (API keys, local software requirements)
 ├── config_schema? (user options)
@@ -155,9 +156,19 @@ Content-Type: application/json
   "default_size": { "w": 2, "h": 2 },
   "credentials": [...],
   "fetch": { "type": "agent_refresh", "schedule": "*/5 * * * *", ... },
+  "dataSchema": {
+    "type": "object",
+    "properties": {
+      "prs": { "type": "array", "description": "List of PR objects" },
+      "fetchedAt": { "type": "string", "format": "date-time" }
+    },
+    "required": ["prs", "fetchedAt"]
+  },
   "cache": { "ttl_seconds": 300, ... }
 }
 ```
+
+**`dataSchema`** defines the data contract. Cache POSTs are validated against it — malformed data returns 400.
 
 ### Step 2: Add to Dashboard
 
@@ -185,6 +196,13 @@ Content-Type: application/json
     "fetchedAt": "2026-02-03T14:00:00Z"
   }
 }
+```
+
+**⚠️ If the widget has a `dataSchema`, the cache endpoint validates your data against it.** Bad data returns 400 with details. Always check the widget's schema before POSTing:
+
+```http
+GET /api/widgets/github-prs
+# Response includes dataSchema showing required fields and types
 ```
 
 ### Step 4: Verify Widget Renders

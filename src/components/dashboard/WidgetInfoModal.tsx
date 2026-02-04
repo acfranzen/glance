@@ -71,6 +71,7 @@ interface WidgetInfo {
   server_code_enabled: boolean;
   source_code?: string;
   server_code?: string;
+  data_schema?: object;
 }
 
 interface CredentialStatus {
@@ -84,7 +85,7 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     metadata: true // Start with metadata expanded
   });
-  const [codeView, setCodeView] = useState<'source' | 'server' | null>(null);
+  const [codeView, setCodeView] = useState<'source' | 'server' | 'schema' | null>(null);
 
   useEffect(() => {
     if (open && widgetSlug) {
@@ -169,7 +170,7 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
     <div className="border border-border rounded-lg overflow-hidden">
       <button
         onClick={() => toggleSection(id)}
-        className="w-full px-3 py-2 flex items-center justify-between bg-secondary/30 hover:bg-secondary/50 transition-colors"
+        className="w-full px-3 py-2 flex items-center justify-between bg-secondary/30 hover:bg-muted transition-colors"
       >
         <div className="flex items-center gap-2 text-sm font-medium">
           <Icon className="h-4 w-4" />
@@ -208,14 +209,25 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
 
   // Code view modal
   if (codeView && info) {
-    const code = codeView === 'source' ? info.source_code : info.server_code;
+    const code = codeView === 'source' 
+      ? info.source_code 
+      : codeView === 'server' 
+        ? info.server_code 
+        : info.data_schema 
+          ? JSON.stringify(info.data_schema, null, 2) 
+          : undefined;
     const lines = countLines(code);
+    const title = codeView === 'source' 
+      ? 'Widget Source Code' 
+      : codeView === 'server' 
+        ? 'Server Code' 
+        : 'Data Schema';
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-3xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
-              <span>{codeView === 'source' ? 'Widget Source Code' : 'Server Code'} ({lines} lines)</span>
+              <span>{title} ({lines} lines)</span>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => copyToClipboard(code || '')}>
                   <Copy className="h-4 w-4 mr-1" /> Copy
@@ -226,7 +238,7 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
               </div>
             </DialogTitle>
           </DialogHeader>
-          <pre className="bg-secondary/50 p-4 rounded-lg overflow-auto text-xs max-h-[60vh] font-mono">
+          <pre className="bg-muted text-foreground p-4 rounded-lg overflow-auto text-xs max-h-[60vh] font-mono">
             <code>{code || 'No code available'}</code>
           </pre>
         </DialogContent>
@@ -354,7 +366,7 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
                         <p className="text-xs text-muted-foreground">{cred.description}</p>
                       )}
                       {cred.check_command && (
-                        <div className="text-xs font-mono bg-secondary/50 px-2 py-1 rounded">
+                        <div className="text-xs font-mono bg-muted text-foreground px-2 py-1 rounded">
                           $ {cred.check_command}
                         </div>
                       )}
@@ -368,7 +380,7 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
                           <summary className="cursor-pointer text-purple-400 hover:text-purple-300 font-medium">
                             How to authenticate
                           </summary>
-                          <pre className="mt-2 bg-secondary/50 p-2 rounded overflow-auto max-h-32 text-[11px] whitespace-pre-wrap font-mono">
+                          <pre className="mt-2 bg-muted text-foreground p-2 rounded overflow-auto max-h-32 text-[11px] whitespace-pre-wrap font-mono">
                             {cred.agent_auth_instructions}
                           </pre>
                         </details>
@@ -422,7 +434,7 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
                       <summary className="cursor-pointer text-primary hover:underline font-medium">
                         View setup instructions for OpenClaw
                       </summary>
-                      <pre className="mt-2 bg-secondary/50 p-3 rounded overflow-auto max-h-48 text-[11px] whitespace-pre-wrap font-mono">
+                      <pre className="mt-2 bg-muted text-foreground p-3 rounded overflow-auto max-h-48 text-[11px] whitespace-pre-wrap font-mono">
                         {info.setup.agent_skill}
                       </pre>
                     </details>
@@ -455,11 +467,11 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
                         {info.fetch.schedule && (
                           <div className="flex items-center gap-1 mt-1">
                             <Clock className="h-3 w-3" />
-                            <span>Schedule: <code className="bg-secondary/50 px-1 rounded">{info.fetch.schedule}</code></span>
+                            <span>Schedule: <code className="bg-muted px-1 rounded">{info.fetch.schedule}</code></span>
                           </div>
                         )}
                         {info.fetch.refresh_command && (
-                          <div className="font-mono bg-secondary/50 px-2 py-1 rounded mt-2">
+                          <div className="font-mono bg-muted text-foreground px-2 py-1 rounded mt-2">
                             $ {info.fetch.refresh_command}
                           </div>
                         )}
@@ -468,7 +480,7 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
                             <summary className="cursor-pointer text-primary hover:underline font-medium">
                               View agent instructions
                             </summary>
-                            <pre className="mt-2 bg-secondary/50 p-3 rounded overflow-auto max-h-48 text-[11px] whitespace-pre-wrap font-mono">
+                            <pre className="mt-2 bg-muted text-foreground p-3 rounded overflow-auto max-h-48 text-[11px] whitespace-pre-wrap font-mono">
                               {info.fetch.instructions}
                             </pre>
                           </details>
@@ -479,7 +491,7 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
                       <>
                         <p>Data is pushed to Glance via webhook from an external service.</p>
                         {info.fetch.webhook_path && (
-                          <div className="font-mono bg-secondary/50 px-2 py-1 rounded mt-2">
+                          <div className="font-mono bg-muted text-foreground px-2 py-1 rounded mt-2">
                             POST {info.fetch.webhook_path}
                           </div>
                         )}
@@ -498,7 +510,7 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
 
             {/* 5. CODE */}
             <Section title="Code" icon={Code} id="code">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -520,6 +532,19 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
                   <Server className="h-5 w-5 mb-1" />
                   <span className="text-xs">Server Code</span>
                   <span className="text-[10px] text-muted-foreground">{countLines(info.server_code)} lines</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCodeView('schema')}
+                  disabled={!info.data_schema}
+                  className="h-auto py-3 flex-col"
+                >
+                  <Database className="h-5 w-5 mb-1" />
+                  <span className="text-xs">Data Schema</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {info.data_schema ? `${countLines(JSON.stringify(info.data_schema, null, 2))} lines` : 'None'}
+                  </span>
                 </Button>
               </div>
             </Section>
