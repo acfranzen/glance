@@ -181,3 +181,25 @@ After the audit:
 3. Decision trees and examples match the hierarchy
 4. No contradictions between README, SKILL.md, and widget-sdk.md
 5. Existing widgets use appropriate fetch types
+
+---
+
+## Future Considerations
+
+### Remove Webhook Fetch Type
+**Status:** Under consideration for future simplification
+
+**Rationale:**
+- For a personal OpenClaw-managed dashboard, webhooks add complexity without much benefit
+- Polling via `server_code` (every 5-15 min) handles most real-time needs
+- Receiving webhooks requires public endpoint (tunnels/Tailscale), adds friction
+- Simplifies the model to a clean dichotomy:
+  - `server_code` — Data accessible via API
+  - `agent_refresh` — Data NOT accessible via API
+
+**If removed:**
+- Remove webhook documentation from SKILL.md and widget-sdk.md
+- Remove webhook-specific code paths
+- Cache endpoint still accepts POSTs (agent_refresh uses it), so technically webhooks still "work" — just not documented/encouraged
+
+**Decision:** Defer for now. Focus audit on fixing server_code vs agent_refresh hierarchy. Revisit webhook removal after docs are consistent.
