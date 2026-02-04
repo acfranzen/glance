@@ -37,6 +37,8 @@ Use the Glance Widget SDK when a user's intent matches any of these patterns:
 - User wants to **delete or remove** a widget
 - User wants to **move or resize** widgets on the dashboard
 
+> **Note:** For moving, resizing, or reorganizing widget layouts (especially for mobile/tablet/desktop), see the [Dashboard API](./dashboard-api.md).
+
 ### Data Visualization & Tracking
 
 - User asks to **see their GitHub PRs**, issues, or repository stats
