@@ -7,7 +7,7 @@ import { ArrowRight, Check, Copy } from "lucide-react";
 
 export function Hero() {
   const [copied, setCopied] = useState(false);
-  const installCommand = "curl -fsSL https://raw.githubusercontent.com/acfranzen/glance/main/scripts/install.sh | bash";
+  const installCommand = "curl -fsSL https://openglance.dev/install.sh | bash";
 
   async function handleCopy() {
     try {

@@ -38,7 +38,7 @@ If you're an AI agent (OpenClaw, Cursor, Claude, etc.), read these files:
 #### Option A: One-Line Install (Recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/acfranzen/glance/main/scripts/install.sh | bash
+curl -fsSL https://openglance.dev/install.sh | bash
 ```
 
 This will:

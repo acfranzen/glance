@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 
 function InstallCommand() {
   const [copied, setCopied] = useState(false);
-  const installCommand = "curl -fsSL https://raw.githubusercontent.com/acfranzen/glance/main/scripts/install.sh | bash";
+  const installCommand = "curl -fsSL https://openglance.dev/install.sh | bash";
 
   async function handleCopy() {
     try {
