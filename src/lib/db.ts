@@ -603,6 +603,7 @@ export interface FetchConfig {
   // For webhook
   webhook_path?: string;
   webhook_setup_instructions?: string;
+  refresh_endpoint?: string;           // External endpoint to trigger refresh
   // For agent_refresh
   instructions?: string;              // Markdown instructions for the agent
   expected_freshness_seconds?: number; // Agent SHOULD refresh within this window

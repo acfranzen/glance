@@ -235,10 +235,13 @@ export async function POST(
       expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
     }
 
-    return NextResponse.json({ 
+    const fetchedAt = new Date().toISOString();
+
+    return NextResponse.json({
       data: result.data,
       fromCache: false,
       freshness: 'fresh',
+      fetched_at: fetchedAt,
       ...(expiresAt && { expiresAt }),
     });
   } catch (error) {

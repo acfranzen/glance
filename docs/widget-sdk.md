@@ -2577,7 +2577,8 @@ When exporting/importing widgets, the schema is included:
   "fetch": {
     "type": "webhook",
     "webhook_path": "/api/webhooks/stripe",
-    "webhook_setup_instructions": "Configure your Stripe webhook to POST to this endpoint"
+    "webhook_setup_instructions": "Configure your Stripe webhook to POST to this endpoint",
+    "refresh_endpoint": "https://api.stripe.com/v1/webhook_endpoints/refresh"
   },
   "setup": {
     "description": "Configure Stripe webhook",

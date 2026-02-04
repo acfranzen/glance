@@ -1,21 +1,13 @@
 "use client";
 
 import { useCallback, useState, useEffect, useRef } from "react";
-import ReactGridLayout, { WidthProvider } from "react-grid-layout/legacy";
+import ReactGridLayout from "react-grid-layout/legacy";
 import { useWidgetStore } from "@/lib/store/widget-store";
-import { DynamicWidgetLoader } from "@/components/widgets/DynamicWidget";
+import { CustomWidgetWrapper } from "@/components/widgets/CustomWidgetWrapper";
 import { WidgetContainer } from "@/components/widgets/WidgetContainer";
 import { WidgetExportModal } from "./WidgetExportModal";
 import { WidgetAboutModal } from "./WidgetAboutModal";
 import { WidgetInfoModal } from "./WidgetInfoModal";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { MoreVertical, Info, Settings, Download } from "lucide-react";
 import type { Widget } from "@/types/api";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -169,69 +161,32 @@ export function DashboardGrid() {
     // Handle custom widgets
     if (widget.type === "custom" && widget.custom_widget_id) {
       return (
-        <WidgetContainer
-          title={widget.title}
+        <CustomWidgetWrapper
+          widget={widget}
           isEditing={isEditing}
           onRemove={() => handleRemoveWidget(widget.id)}
-          action={
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  title="Widget options"
-                >
-                  <MoreVertical className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() =>
-                    setAboutModal({
-                      open: true,
-                      slug: widget.custom_widget_id!,
-                      name: widget.title,
-                    })
-                  }
-                >
-                  <Info className="mr-2 h-4 w-4" />
-                  Widget Info
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() =>
-                    setSettingsModal({
-                      open: true,
-                      slug: widget.custom_widget_id!,
-                      name: widget.title,
-                    })
-                  }
-                >
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() =>
-                    setExportModal({
-                      open: true,
-                      slug: widget.custom_widget_id!,
-                      name: widget.title,
-                    })
-                  }
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Export
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          onOpenAbout={() =>
+            setAboutModal({
+              open: true,
+              slug: widget.custom_widget_id!,
+              name: widget.title,
+            })
           }
-        >
-          <DynamicWidgetLoader
-            customWidgetId={widget.custom_widget_id}
-            config={widget.config}
-            widgetId={widget.id}
-          />
-        </WidgetContainer>
+          onOpenSettings={() =>
+            setSettingsModal({
+              open: true,
+              slug: widget.custom_widget_id!,
+              name: widget.title,
+            })
+          }
+          onOpenExport={() =>
+            setExportModal({
+              open: true,
+              slug: widget.custom_widget_id!,
+              name: widget.title,
+            })
+          }
+        />
       );
     }
 

@@ -53,6 +53,7 @@ interface FetchInfo {
   webhook_path?: string;
   instructions?: string;
   schedule?: string;
+  refresh_endpoint?: string;
 }
 
 interface WidgetInfo {
@@ -493,6 +494,14 @@ export function WidgetInfoModal({ open, onOpenChange, widgetSlug, widgetName }: 
                         {info.fetch.webhook_path && (
                           <div className="font-mono bg-muted text-foreground px-2 py-1 rounded mt-2">
                             POST {info.fetch.webhook_path}
+                          </div>
+                        )}
+                        {info.fetch.refresh_endpoint && (
+                          <div className="mt-2">
+                            <span className="text-muted-foreground">Refresh endpoint:</span>
+                            <div className="font-mono bg-muted text-foreground px-2 py-1 rounded mt-1">
+                              POST {info.fetch.refresh_endpoint}
+                            </div>
                           </div>
                         )}
                       </>

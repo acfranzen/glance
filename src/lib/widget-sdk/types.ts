@@ -33,6 +33,7 @@ export interface FetchConfig {
   expected_freshness_seconds?: number;
   max_staleness_seconds?: number;
   schedule?: string;
+  refresh_endpoint?: string;  // For webhook - external endpoint to trigger refresh
 }
 
 // Custom Widget Definition from API

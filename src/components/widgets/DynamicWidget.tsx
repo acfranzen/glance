@@ -1,19 +1,23 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import useSWR from 'swr';
 import { transpileJSX } from '@/lib/widget-sdk/transpiler';
 import { createWidgetContext, executeWidgetCode } from '@/lib/widget-sdk/context';
 import { Loading, ErrorDisplay } from '@/lib/widget-sdk/components';
+import { WidgetRefreshFooter, type FreshnessStatus } from '@/components/widgets/WidgetRefreshFooter';
 import type { CustomWidgetDefinition, WidgetConfig } from '@/lib/widget-sdk/types';
-
-// SWR fetcher
-const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 interface DynamicWidgetProps {
   customWidgetId: string;
   config?: WidgetConfig;
   widgetId: string;
+  // Props for data passed from wrapper (when used with CustomWidgetWrapper)
+  serverData?: unknown;
+  isLoadingServerData?: boolean;
+  fetchedAt?: string | null;
+  freshness?: FreshnessStatus;
+  // Optional pre-fetched definition to avoid duplicate fetch
+  definition?: CustomWidgetDefinition | null;
 }
 
 interface CustomWidgetState {
@@ -43,8 +47,8 @@ class WidgetErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <ErrorDisplay 
-          message={this.state.error?.message || 'Widget crashed'} 
+        <ErrorDisplay
+          message={this.state.error?.message || 'Widget crashed'}
           retry={() => this.setState({ hasError: false, error: null })}
         />
       );
@@ -53,14 +57,33 @@ class WidgetErrorBoundary extends React.Component<
   }
 }
 
-export function DynamicWidget({ customWidgetId, config = {}, widgetId }: DynamicWidgetProps) {
+export function DynamicWidget({
+  customWidgetId,
+  config = {},
+  widgetId,
+  serverData: externalServerData,
+  isLoadingServerData: _isLoadingServerData,
+  fetchedAt,
+  freshness,
+  definition: externalDefinition,
+}: DynamicWidgetProps) {
   const [state, setState] = useState<CustomWidgetState>({
-    definition: null,
-    loading: true,
+    definition: externalDefinition ?? null,
+    loading: !externalDefinition,
     error: null,
   });
-  // Fetch the custom widget definition
+
+  // Update state if external definition changes
   useEffect(() => {
+    if (externalDefinition) {
+      setState({ definition: externalDefinition, loading: false, error: null });
+    }
+  }, [externalDefinition]);
+
+  // Fetch the custom widget definition only if not provided externally
+  useEffect(() => {
+    if (externalDefinition) return; // Skip fetch if definition provided
+
     let mounted = true;
 
     async function fetchDefinition() {
@@ -70,16 +93,16 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
           throw new Error(`Failed to fetch widget: ${response.status}`);
         }
         const definition = await response.json() as CustomWidgetDefinition;
-        
+
         if (mounted) {
           setState({ definition, loading: false, error: null });
         }
       } catch (error) {
         if (mounted) {
-          setState({ 
-            definition: null, 
-            loading: false, 
-            error: error instanceof Error ? error : new Error('Unknown error') 
+          setState({
+            definition: null,
+            loading: false,
+            error: error instanceof Error ? error : new Error('Unknown error')
           });
         }
       }
@@ -90,76 +113,12 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
     return () => {
       mounted = false;
     };
-  }, [customWidgetId]);
+  }, [customWidgetId, externalDefinition]);
 
-  // Determine fetch type and URL for server data
-  const fetchConfig = state.definition?.fetch ? 
-    (typeof state.definition.fetch === 'string' ? JSON.parse(state.definition.fetch) : state.definition.fetch) 
-    : null;
-  const isAgentRefresh = fetchConfig?.type === 'agent_refresh';
-  const hasServerCode = state.definition?.server_code_enabled;
-  const shouldFetchData = state.definition?.slug && (isAgentRefresh || hasServerCode);
-  
-  // Build the cache URL for agent_refresh widgets
-  const cacheUrl = shouldFetchData && isAgentRefresh 
-    ? `/api/widgets/${state.definition!.slug}/cache` 
-    : null;
-
-  // Use SWR for polling agent_refresh widgets (default 30s, or widget's refresh_interval)
-  const refreshInterval = state.definition?.refresh_interval 
-    ? Math.min(state.definition.refresh_interval * 1000, 30000) // Cap at 30s for responsiveness
-    : 30000;
-  
-  const { data: swrData, isLoading: swrLoading } = useSWR(
-    cacheUrl,
-    fetcher,
-    { 
-      refreshInterval,
-      revalidateOnFocus: true,
-      dedupingInterval: 5000,
-    }
-  );
-
-  // For server_code widgets, use manual fetch (they need POST with params)
-  const [serverCodeData, setServerCodeData] = useState<unknown>(null);
-  const [serverCodeLoading, setServerCodeLoading] = useState(false);
-  
-  useEffect(() => {
-    if (!shouldFetchData || isAgentRefresh || !state.definition?.slug) {
-      return;
-    }
-
-    let mounted = true;
-    setServerCodeLoading(true);
-
-    async function fetchServerCode() {
-      try {
-        const response = await fetch(`/api/widgets/${state.definition!.slug}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ params: config }),
-        });
-        const result = await response.json();
-        
-        if (mounted) {
-          setServerCodeData(result.error ? { error: result.error } : result.data);
-          setServerCodeLoading(false);
-        }
-      } catch (error) {
-        if (mounted) {
-          setServerCodeData({ error: error instanceof Error ? error.message : 'Failed to fetch server data' });
-          setServerCodeLoading(false);
-        }
-      }
-    }
-
-    fetchServerCode();
-    return () => { mounted = false; };
-  }, [shouldFetchData, isAgentRefresh, state.definition?.slug, config]);
-
-  // Combine server data from SWR (agent_refresh) or manual fetch (server_code)
-  const serverData = isAgentRefresh ? swrData?.data : serverCodeData;
-  const serverDataLoading = isAgentRefresh ? swrLoading : serverCodeLoading;
+  // Determine if widget has server-side data
+  const hasServerData = state.definition?.server_code_enabled ||
+    state.definition?.fetch?.type === 'agent_refresh' ||
+    state.definition?.fetch?.type === 'webhook';
 
   // Memoize the transpiled code and widget component
   const { Widget, transpileError } = useMemo(() => {
@@ -170,7 +129,7 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
     try {
       // Use cached compiled code if available, otherwise transpile
       let code = state.definition.compiled_code;
-      
+
       if (!code) {
         const result = transpileJSX(state.definition.source_code);
         if (result.error) {
@@ -190,12 +149,12 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
 
       // Execute the widget code
       const WidgetComponent = executeWidgetCode(code, context);
-      
+
       return { Widget: WidgetComponent, transpileError: null };
     } catch (error) {
-      return { 
-        Widget: null, 
-        transpileError: error instanceof Error ? error : new Error('Failed to create widget') 
+      return {
+        Widget: null,
+        transpileError: error instanceof Error ? error : new Error('Failed to create widget')
       };
     }
   }, [state.definition, config, widgetId]);
@@ -224,27 +183,44 @@ export function DynamicWidget({ customWidgetId, config = {}, widgetId }: Dynamic
     return <ErrorDisplay message="Widget component not available" />;
   }
 
-  // Render the widget with error boundary
+  // Render the widget with error boundary and refresh footer
   return (
-    <WidgetErrorBoundary onError={handleError}>
-      <Widget config={config} serverData={serverData} />
-    </WidgetErrorBoundary>
+    <div className="flex flex-col h-full">
+      <div className="flex-1 min-h-0 overflow-auto">
+        <WidgetErrorBoundary onError={handleError}>
+          <Widget config={config} serverData={externalServerData} />
+        </WidgetErrorBoundary>
+      </div>
+      {hasServerData && fetchedAt && (
+        <WidgetRefreshFooter fetchedAt={fetchedAt} freshness={freshness ?? null} />
+      )}
+    </div>
   );
 }
 
 // Loader component that handles the case where customWidgetId might change
-export function DynamicWidgetLoader({ 
-  customWidgetId, 
+export function DynamicWidgetLoader({
+  customWidgetId,
   config,
-  widgetId 
+  widgetId,
+  serverData,
+  isLoadingServerData,
+  fetchedAt,
+  freshness,
+  definition,
 }: DynamicWidgetProps) {
   // Key forces remount when customWidgetId changes
   return (
-    <DynamicWidget 
+    <DynamicWidget
       key={customWidgetId}
-      customWidgetId={customWidgetId} 
+      customWidgetId={customWidgetId}
       config={config}
       widgetId={widgetId}
+      serverData={serverData}
+      isLoadingServerData={isLoadingServerData}
+      fetchedAt={fetchedAt}
+      freshness={freshness}
+      definition={definition}
     />
   );
 }
