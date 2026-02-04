@@ -18,11 +18,11 @@ Create and manage dashboard widgets. Most widgets use `agent_refresh` — **you*
 ## Quick Start
 
 ```bash
-# Check Glance is running
-curl -s "$GLANCE_URL/api/health"
+# Check Glance is running (list widgets)
+curl -s -H "Origin: $GLANCE_URL" "$GLANCE_URL/api/widgets" | jq '.custom_widgets[].slug'
 
-# List existing widgets
-curl -s "$GLANCE_URL/api/widgets" | jq '.custom_widgets[].slug'
+# Auth note: Local requests with Origin header bypass Bearer token auth
+# For external access, use: -H "Authorization: Bearer $GLANCE_TOKEN"
 
 # Refresh a widget (look up instructions, collect data, POST to cache)
 sqlite3 $GLANCE_DATA/glance.db "SELECT json_extract(fetch, '$.instructions') FROM custom_widgets WHERE slug = 'my-widget'"

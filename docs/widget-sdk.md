@@ -227,7 +227,7 @@ Step-by-step flows for the most common operations.
    → If missing, ask user and POST /api/credentials
 
 2. CREATE WIDGET DEFINITION
-   POST /api/custom-widgets
+   POST /api/widgets
    {
      "name": "GitHub PRs",
      "description": "Shows open pull requests",
@@ -242,7 +242,7 @@ Step-by-step flows for the most common operations.
    → Returns widget definition with ID (e.g., "cw_abc123")
 
 3. ADD WIDGET TO DASHBOARD
-   POST /api/widgets
+   POST /api/widgets/instances
    {
      "type": "custom",
      "title": "GitHub PRs",
@@ -259,11 +259,11 @@ Step-by-step flows for the most common operations.
 
 ```
 1. GET CURRENT STATE
-   GET /api/custom-widgets/:slug
+   GET /api/widgets/:slug
    → Retrieve current source_code, server_code, etc.
 
 2. MODIFY WIDGET DEFINITION (code changes)
-   PATCH /api/custom-widgets/:slug
+   PATCH /api/widgets/:slug
    {
      "source_code": "function Widget() { ... }",
      "server_code": "..."
@@ -271,7 +271,7 @@ Step-by-step flows for the most common operations.
    → Only include fields being changed
 
 3. MODIFY WIDGET INSTANCE (config, position, size)
-   PATCH /api/widgets/:id
+   PATCH /api/widgets/instances/:id
    {
      "config": { "owner": "acfranzen", "repo": "glance", "show_drafts": true },
      "position": { "x": 0, "y": 0, "w": 6, "h": 4 }
@@ -286,12 +286,12 @@ Step-by-step flows for the most common operations.
 
 ```
 1. GET ALL WIDGET INSTANCES
-   GET /api/widgets
+   GET /api/widgets/instances
    → Returns list of widgets on dashboard with their config
 
 2. FOR WIDGETS WITH SERVER CODE, EXECUTE TO GET FRESH DATA
    For each custom widget:
-     POST /api/custom-widgets/:slug/execute
+     POST /api/widgets/:slug/execute
      { "params": { ... } }
      → Returns current data (PRs, weather, usage, etc.)
 
@@ -310,11 +310,11 @@ Step-by-step flows for the most common operations.
    "Are you sure you want to delete the weather widget?"
 
 2. DELETE WIDGET INSTANCE (removes from dashboard)
-   DELETE /api/widgets/:id
+   DELETE /api/widgets/instances/:id
    → Returns { "success": true }
 
 3. OPTIONALLY DELETE WIDGET DEFINITION (removes the code)
-   DELETE /api/custom-widgets/:slug
+   DELETE /api/widgets/:slug
    → Returns { "success": true, "deleted_id": "cw_xxx" }
 
 4. CONFIRM
@@ -352,15 +352,15 @@ Step-by-step flows for the most common operations.
 
 Glance uses a **two-step process** for custom widgets:
 
-1. **Widget Definition** (`/api/custom-widgets`) — The code template
-2. **Widget Instance** (`/api/widgets`) — A widget placed on the dashboard
+1. **Widget Definition** (`/api/widgets`) — The code template
+2. **Widget Instance** (`/api/widgets/instances`) — A widget placed on the dashboard
 
 All endpoints require authentication via Bearer token.
 
 ### Step 1: Create Widget Definition
 
 ```http
-POST /api/custom-widgets
+POST /api/widgets
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -416,7 +416,7 @@ Content-Type: application/json
 ### Step 2: Add Widget to Dashboard
 
 ```http
-POST /api/widgets
+POST /api/widgets/instances
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -457,7 +457,7 @@ Content-Type: application/json
 ### Get All Widget Definitions
 
 ```http
-GET /api/custom-widgets
+GET /api/widgets
 Authorization: Bearer <token>
 ```
 
@@ -482,7 +482,7 @@ Authorization: Bearer <token>
 ### Get a Single Widget Definition
 
 ```http
-GET /api/custom-widgets/:slug
+GET /api/widgets/:slug
 Authorization: Bearer <token>
 ```
 
@@ -510,7 +510,7 @@ Authorization: Bearer <token>
 ### Update a Widget Definition
 
 ```http
-PATCH /api/custom-widgets/:slug
+PATCH /api/widgets/:slug
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -528,7 +528,7 @@ All fields are optional. Only provided fields will be updated.
 ### Delete a Widget Definition
 
 ```http
-DELETE /api/custom-widgets/:slug
+DELETE /api/widgets/:slug
 Authorization: Bearer <token>
 ```
 
@@ -544,7 +544,7 @@ Authorization: Bearer <token>
 ### Get All Widget Instances (Dashboard)
 
 ```http
-GET /api/widgets
+GET /api/widgets/instances
 Authorization: Bearer <token>
 ```
 
@@ -853,7 +853,7 @@ OpenClaw agents can read widget data to understand what's displayed on the dashb
 Triggers execution of the widget's server code to fetch fresh data.
 
 ```http
-POST /api/custom-widgets/:slug/execute
+POST /api/widgets/:slug/execute
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -892,7 +892,7 @@ Content-Type: application/json
 OpenClaw agents can "read the dashboard" by:
 
 1. **Listing widget instances:** `GET /api/widgets` to see what's on the dashboard
-2. **Executing each widget's server code:** `POST /api/custom-widgets/:slug/execute` for fresh data
+2. **Executing each widget's server code:** `POST /api/widgets/:slug/execute` for fresh data
 3. **Summarizing for users:** Convert the raw data into natural language
 
 **Example agent flow:**
@@ -901,10 +901,10 @@ OpenClaw agents can "read the dashboard" by:
 User: "What's on my dashboard?"
 
 Agent:
-1. GET /api/widgets → [{ custom_widget_id: "cw_abc", config: {...} }, ...]
-2. GET /api/custom-widgets → [{ slug: "github-prs" }, { slug: "weather" }]
-3. POST /api/custom-widgets/github-prs/execute → { data: { prs: [...] } }
-4. POST /api/custom-widgets/weather/execute → { data: { temp: 72, conditions: "sunny" } }
+1. GET /api/widgets/instances → [{ custom_widget_id: "cw_abc", config: {...} }, ...]
+2. GET /api/widgets → [{ slug: "github-prs" }, { slug: "weather" }]
+3. POST /api/widgets/github-prs/execute → { data: { prs: [...] } }
+4. POST /api/widgets/weather/execute → { data: { temp: 72, conditions: "sunny" } }
 
 Response: "Your dashboard shows:
 - 3 open PRs on github/glance (newest: 'Add widget SDK docs' by zeus)
@@ -1382,13 +1382,13 @@ Available icons (sandbox subset):
 ### Creating a Widget
 
 1. **Check credentials:** Verify any required credentials exist
-2. **Create widget definition:** POST to `/api/custom-widgets`
-3. **Add to dashboard:** POST to `/api/widgets` with `custom_widget_id`
+2. **Create widget definition:** POST to `/api/widgets`
+3. **Add to dashboard:** POST to `/api/widgets/instances` with `custom_widget_id`
 4. **Verify creation:** Widget appears on dashboard
 
 ```http
 # Step 1: Create definition
-POST /api/custom-widgets
+POST /api/widgets
 {
   "name": "My Widget",
   "source_code": "function Widget() { return <Card><CardContent>Hello!</CardContent></Card>; }",
@@ -1396,7 +1396,7 @@ POST /api/custom-widgets
 }
 
 # Step 2: Add to dashboard
-POST /api/widgets
+POST /api/widgets/instances
 {
   "type": "custom",
   "title": "My Widget",
@@ -1409,7 +1409,7 @@ POST /api/widgets
 **Update the definition (code changes):**
 
 ```http
-PATCH /api/custom-widgets/my-widget
+PATCH /api/widgets/my-widget
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -1423,7 +1423,7 @@ Content-Type: application/json
 **Update the instance (config, position, size):**
 
 ```http
-PATCH /api/widgets/:id
+PATCH /api/widgets/instances/:id
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -1445,14 +1445,14 @@ Common update scenarios:
 **Remove from dashboard (keeps definition for reuse):**
 
 ```http
-DELETE /api/widgets/:id
+DELETE /api/widgets/instances/:id
 Authorization: Bearer <token>
 ```
 
 **Delete definition entirely:**
 
 ```http
-DELETE /api/custom-widgets/:slug
+DELETE /api/widgets/:slug
 Authorization: Bearer <token>
 ```
 
@@ -1785,22 +1785,22 @@ Understanding API response structures is critical for parsing and handling data 
 
 | Method   | Endpoint                            | Description                 | Auth         |
 | -------- | ----------------------------------- | --------------------------- | ------------ |
-| `GET`    | `/api/custom-widgets`               | List all widget definitions | Bearer token |
-| `POST`   | `/api/custom-widgets`               | Create a widget definition  | Bearer token |
-| `GET`    | `/api/custom-widgets/:slug`         | Get a widget definition     | Bearer token |
-| `PATCH`  | `/api/custom-widgets/:slug`         | Update a widget definition  | Bearer token |
-| `DELETE` | `/api/custom-widgets/:slug`         | Delete a widget definition  | Bearer token |
-| `POST`   | `/api/custom-widgets/:slug/execute` | Execute server code         | Bearer token |
+| `GET`    | `/api/widgets`               | List all widget definitions | Bearer token |
+| `POST`   | `/api/widgets`               | Create a widget definition  | Bearer token |
+| `GET`    | `/api/widgets/:slug`         | Get a widget definition     | Bearer token |
+| `PATCH`  | `/api/widgets/:slug`         | Update a widget definition  | Bearer token |
+| `DELETE` | `/api/widgets/:slug`         | Delete a widget definition  | Bearer token |
+| `POST`   | `/api/widgets/:slug/execute` | Execute server code         | Bearer token |
 
 ### Widget Instance Endpoints
 
-| Method   | Endpoint           | Description                   | Auth         |
-| -------- | ------------------ | ----------------------------- | ------------ |
-| `GET`    | `/api/widgets`     | List all widgets on dashboard | Bearer token |
-| `POST`   | `/api/widgets`     | Add a widget to dashboard     | Bearer token |
-| `GET`    | `/api/widgets/:id` | Get a widget instance         | Bearer token |
-| `PATCH`  | `/api/widgets/:id` | Update a widget instance      | Bearer token |
-| `DELETE` | `/api/widgets/:id` | Remove widget from dashboard  | Bearer token |
+| Method   | Endpoint                     | Description                   | Auth         |
+| -------- | ---------------------------- | ----------------------------- | ------------ |
+| `GET`    | `/api/widgets/instances`     | List all widgets on dashboard | Bearer token |
+| `POST`   | `/api/widgets/instances`     | Add a widget to dashboard     | Bearer token |
+| `GET`    | `/api/widgets/instances/:id` | Get a widget instance         | Bearer token |
+| `PATCH`  | `/api/widgets/instances/:id` | Update a widget instance      | Bearer token |
+| `DELETE` | `/api/widgets/instances/:id` | Remove widget from dashboard  | Bearer token |
 
 ### Credential Endpoints
 
@@ -2018,7 +2018,7 @@ Build and submit the widget definition, then add it to the dashboard:
 
 ```http
 # Step 4a: Create widget definition
-POST /api/custom-widgets
+POST /api/widgets
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -2058,14 +2058,14 @@ It's showing 3 open pull requests right now."
 During periodic heartbeats, OpenClaw can check widget data and summarize:
 
 ```http
-GET /api/custom-widgets
+GET /api/widgets
 Authorization: Bearer <token>
 ```
 
 For each relevant widget:
 
 ```http
-GET /api/custom-widgets/cuid_abc123/data
+GET /api/widgets/cuid_abc123/data
 Authorization: Bearer <token>
 ```
 
@@ -2088,7 +2088,7 @@ Agent: "I see you already have a GitHub token saved. Which repos
 
 User: "Just libra for now"
 
-Agent: [Creates widget via POST /api/custom-widgets]
+Agent: [Creates widget via POST /api/widgets]
 Agent: "Done! Your Libra PRs widget is live. You currently have
        2 open PRs:
        - #142: 'Add credential management' (opened 2 days ago)
@@ -2096,7 +2096,7 @@ Agent: "Done! Your Libra PRs widget is live. You currently have
 
 User: "Actually make it show both libra and glance"
 
-Agent: [Updates widget via PATCH /api/custom-widgets/:slug OR creates second widget]
+Agent: [Updates widget via PATCH /api/widgets/:slug OR creates second widget]
 Agent: "Updated! Now showing PRs from both repos."
 
 --- Later, on heartbeat ---
@@ -2207,7 +2207,7 @@ if (message.startsWith('⚡ WIDGET REFRESH:')) {
 #### 2. Data Push Endpoint
 
 ```http
-POST /api/custom-widgets/{slug}/cache
+POST /api/widgets/{slug}/cache
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -2244,7 +2244,7 @@ async function refreshHomebrew(slug) {
     const count = parseInt(result.stdout.trim());
     
     // 2. Push to widget cache
-    await fetch(`${GLANCE_URL}/api/custom-widgets/${slug}/cache`, {
+    await fetch(`${GLANCE_URL}/api/widgets/${slug}/cache`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${GLANCE_TOKEN}`,
@@ -2680,7 +2680,7 @@ When exporting/importing widgets, the schema is included:
   ],
   "fetch": {
     "type": "agent_refresh",
-    "instructions": "Run `brew list --formula | wc -l` to get package count, then POST to /api/custom-widgets/homebrew-status/cache",
+    "instructions": "Run `brew list --formula | wc -l` to get package count, then POST to /api/widgets/homebrew-status/cache",
     "schedule": "*/15 * * * *",
     "expected_freshness_seconds": 900,
     "max_staleness_seconds": 3600
