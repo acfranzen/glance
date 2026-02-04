@@ -307,7 +307,7 @@ export async function POST(request: NextRequest) {
         const existingWidgetInstances = getAllWidgets();
         for (const instance of existingWidgetInstances) {
           // Only delete custom widget instances
-          if ((instance as any).custom_widget_id) {
+          if (instance.custom_widget_id) {
             deleteWidget(instance.id);
           }
         }
@@ -327,7 +327,7 @@ export async function POST(request: NextRequest) {
         // Check if this widget is already on the dashboard
         const existingInstances = getAllWidgets();
         const existingInstance = existingInstances.find((w) => {
-          return (w as any).custom_widget_id === customWidget.id;
+          return w.custom_widget_id === customWidget.id;
         });
         
         if (existingInstance) {
@@ -402,7 +402,7 @@ export async function POST(request: NextRequest) {
     for (const widget of dashboard.widgets) {
       if (widget.credentials && Array.isArray(widget.credentials)) {
         for (const cred of widget.credentials) {
-          const credId = (cred as any).id || (cred as any).provider;
+          const credId = cred.id;
           if (credId && !credentialsMissing.includes(credId)) {
             const isConfigured = hasCredential(credId as Provider);
             if (!isConfigured) {

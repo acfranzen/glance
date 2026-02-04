@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 import { validateAuthOrInternal } from "@/lib/auth";
-import { getAllCustomWidgets } from "@/lib/db";
+import { getAllCustomWidgets, type CredentialRequirement } from "@/lib/db";
 import { hasCredential, type Provider } from "@/lib/credentials";
 
 interface DashboardExportFormat {
@@ -25,7 +25,7 @@ interface DashboardExportFormat {
     min_size: { w: number; h: number };
     refresh_interval: number;
     fetch: unknown;
-    credentials?: unknown[];
+    credentials?: CredentialRequirement[];
     setup?: unknown;
     cache?: unknown;
     data_schema?: unknown;
@@ -148,14 +148,16 @@ export async function POST(request: NextRequest) {
     // Validate structure
     const validation = validateDashboardFormat(body);
     if (!validation.valid) {
+      // Extract safe fields from unknown body for error response
+      const bodyObj = (body && typeof body === "object") ? body as Record<string, unknown> : {};
       const response: ImportPreviewResponse = {
         valid: false,
         errors: validation.errors,
         warnings: [],
         dashboard: {
-          name: (body as any)?.name || "Unknown",
-          exported_at: (body as any)?.exported_at || "Unknown",
-          glance_version: (body as any)?.glance_version || "Unknown",
+          name: typeof bodyObj.name === "string" ? bodyObj.name : "Unknown",
+          exported_at: typeof bodyObj.exported_at === "string" ? bodyObj.exported_at : "Unknown",
+          glance_version: typeof bodyObj.glance_version === "string" ? bodyObj.glance_version : "Unknown",
         },
         widget_count: 0,
         widgets: [],
@@ -218,7 +220,7 @@ export async function POST(request: NextRequest) {
     for (const widget of dashboard.widgets) {
       if (widget.credentials && Array.isArray(widget.credentials)) {
         for (const cred of widget.credentials) {
-          const credId = (cred as any).id || (cred as any).provider;
+          const credId = cred.id;
           if (credId && !credentialsNeeded.includes(credId)) {
             credentialsNeeded.push(credId);
             const isConfigured = hasCredential(credId as Provider);

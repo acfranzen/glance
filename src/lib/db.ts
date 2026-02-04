@@ -204,6 +204,7 @@ export interface WidgetRow {
   data_source: string | null;
   data_cache: string | null;
   data_updated_at: string | null;
+  custom_widget_id: string | null;
   created_at: string;
   updated_at: string;
 }

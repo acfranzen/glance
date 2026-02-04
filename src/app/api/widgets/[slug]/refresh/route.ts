@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import https from 'https';
+import https, { type RequestOptions } from 'https';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,20 +96,17 @@ export async function POST(
         const isHttps = url.protocol === 'https:';
         const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
 
-        const options: any = {
+        const options: RequestOptions = {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${webhookToken}`,
             'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(payload)
+            'Content-Length': Buffer.byteLength(payload).toString()
           },
-          timeout: 5000
+          timeout: 5000,
+          // Allow self-signed certificates for localhost
+          rejectUnauthorized: !(isHttps && isLocalhost)
         };
-
-        // Allow self-signed certificates for localhost
-        if (isHttps && isLocalhost) {
-          options.rejectUnauthorized = false;
-        }
 
         const httpModule = isHttps ? https : (await import('http')).default;
         

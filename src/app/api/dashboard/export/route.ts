@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     // Filter custom widgets based on what's actually on the dashboard
     const customWidgetIdsOnDashboard = new Set(
       allWidgetInstances
-        .map(w => (w as any).custom_widget_id)
+        .map(w => w.custom_widget_id)
         .filter(Boolean)
     );
     
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
       
       // Build desktop layout from widget positions
       for (const instance of allWidgetInstances) {
-        const customWidgetId = (instance as any).custom_widget_id;
+        const customWidgetId = instance.custom_widget_id;
         if (!customWidgetId) continue;
         
         const customWidget = getCustomWidget(customWidgetId);
@@ -191,10 +191,10 @@ export async function POST(request: NextRequest) {
     for (const widget of widgetsToExport) {
       if (widget.credentials && Array.isArray(widget.credentials)) {
         for (const cred of widget.credentials) {
-          const credId = (cred as any).id || (cred as any).provider;
+          const credId = cred.id;
           if (credId && !credentialsNeeded.has(credId)) {
             credentialsNeeded.set(credId, {
-              description: (cred as any).description || (cred as any).name || credId,
+              description: cred.description || cred.name || credId,
               required: true,
             });
           }
