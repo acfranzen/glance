@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import useSWR from 'swr';
 import type { CustomWidgetDefinition, WidgetConfig } from '@/lib/widget-sdk/types';
 import type { FreshnessStatus } from '@/components/widgets/WidgetRefreshFooter';
@@ -140,7 +141,13 @@ export function useWidgetData(
   const refresh = useCallback(async () => {
     if (!definition?.slug) return;
 
-    setIsRefreshing(true);
+    // Use flushSync to ensure spinner shows before async operations
+    flushSync(() => setIsRefreshing(true));
+    
+    // Track start time for minimum visible duration
+    const startTime = Date.now();
+    const MIN_VISIBLE_MS = 400; // Show spinner for at least 400ms
+    
     try {
       if (hasServerCode && !isAgentRefresh && !isWebhook) {
         // server_code: Execute with force_refresh to update cache
@@ -165,6 +172,11 @@ export function useWidgetData(
         await mutate(); // Refresh from cache
       }
     } finally {
+      // Ensure spinner shows for minimum duration for visual feedback
+      const elapsed = Date.now() - startTime;
+      if (elapsed < MIN_VISIBLE_MS) {
+        await new Promise(resolve => setTimeout(resolve, MIN_VISIBLE_MS - elapsed));
+      }
       setIsRefreshing(false);
     }
   }, [definition?.slug, hasServerCode, isAgentRefresh, isWebhook, fetchConfig?.refresh_endpoint, widgetInstanceId, mutate]);
