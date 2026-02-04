@@ -74,9 +74,9 @@ const features = [
     description: 'Your dashboard adapts perfectly to any screen size, from desktop to mobile.',
   },
   {
-    icon: Shield,
-    title: 'Secure by Default',
-    description: 'Your data is encrypted and stored securely. We never sell your information.',
+    icon: Sparkles,
+    title: 'AI Agent Integration',
+    description: 'Connect to OpenClaw and your widgets can access anything — emails, calendars, APIs, CLI tools, and more.',
   },
 ];
 
@@ -319,7 +319,7 @@ export default function LandingPage() {
               Built for Focus
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Every detail is designed to help you stay calm and productive.
+              Powerful features backed by AI agents that fetch your data automatically.
             </p>
           </div>
           
