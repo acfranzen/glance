@@ -197,7 +197,7 @@ export function DynamicWidget({
       {hasServerData && (fetchedAt || pendingRefresh) && (
         <WidgetRefreshFooter
           fetchedAt={fetchedAt ?? null}
-          freshness={pendingRefresh ? 'queued' : (freshness ?? null)}
+          freshness={freshness ?? null}
           queuedAt={pendingRefresh?.requestedAt ?? null}
         />
       )}
