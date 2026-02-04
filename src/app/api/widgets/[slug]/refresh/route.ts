@@ -66,30 +66,38 @@ export async function POST(
 
     // Try to wake the OpenClaw agent if gateway URL is configured
     const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL;
-    const gatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN;
+    const gatewayToken = process.env.OPENCLAW_TOKEN;
+    let webhookSent = false;
 
     if (gatewayUrl && gatewayToken) {
       try {
-        await fetch(`${gatewayUrl}/api/cron/wake`, {
+        const response = await fetch(`${gatewayUrl}/api/sessions/wake`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${gatewayToken}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            text: `⚡ WIDGET REFRESH REQUESTED: User clicked refresh on "${widget.name}" (${slug}). Collect data now and POST to cache.`,
+            text: `⚡ WIDGET REFRESH: Refresh the "${slug}" widget now and POST to cache`,
             mode: 'now'
           })
         });
+        // Only mark as sent if response was successful (2xx)
+        webhookSent = response.ok;
+        if (!response.ok) {
+          console.error(`OpenClaw webhook failed: ${response.status} ${response.statusText}`);
+        }
       } catch (e) {
-        // Silently fail - agent will pick it up on next heartbeat
-        console.log('Could not wake OpenClaw agent:', e);
+        // Network failure - agent will pick it up on next heartbeat
+        console.error('Failed to notify OpenClaw:', e);
       }
     }
 
     return NextResponse.json({
+      status: 'refresh_requested',
       success: true,
-      message: 'Refresh requested',
+      webhook_sent: webhookSent,
+      fallback_queued: true,
       slug,
       requestedAt: now
     });
