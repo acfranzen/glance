@@ -11,7 +11,6 @@ Glance is a **free and open source** dashboard that OpenClaw builds and manages 
 
 Tell OpenClaw _"show me my GitHub PRs"_ and watch it build the widget. Ask _"what needs my attention?"_ and OpenClaw reads your dashboard and tells you. No manual setup. No YAML files. No `.env` hell.
 
-**The #1 dashboard skill in the OpenClaw community.**
 
 ![Glance Dashboard](glance.png)
 
