@@ -83,7 +83,7 @@ export function Hero() {
       </div>
 
       <p className="mt-6 text-xs text-muted-foreground">
-        100% open source · MIT License · Built with Next.js
+        100% open source · MIT License
       </p>
     </section>
   );
