@@ -1,8 +1,16 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { GripVertical, X, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -31,7 +39,37 @@ export function WidgetContainer({
   contentClassName,
   showHeader = true,
 }: WidgetContainerProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = () => {
+    setShowDeleteConfirm(false);
+    onRemove?.();
+  };
+
   return (
+    <>
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Delete Widget</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &quot;{title}&quot;? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     <Card className={cn('h-full flex flex-col overflow-hidden shadow-sm hover:shadow-md transition-shadow', className)}>
       {showHeader && (
         <CardHeader className={cn('pb-2 pt-3 px-3 sm:px-4 flex-none', headerClassName)}>
@@ -64,7 +102,7 @@ export function WidgetContainer({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive opacity-70 hover:opacity-100 transition-opacity"
-                      onClick={onRemove}
+                      onClick={handleDeleteClick}
                       title="Delete widget"
                     >
                       <X className="h-4 w-4" />
@@ -80,5 +118,6 @@ export function WidgetContainer({
         {children}
       </CardContent>
     </Card>
+    </>
   );
 }
