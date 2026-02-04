@@ -156,7 +156,7 @@ Content-Type: application/json
   "default_size": { "w": 2, "h": 2 },
   "credentials": [...],
   "fetch": { "type": "agent_refresh", "schedule": "*/5 * * * *", ... },
-  "dataSchema": {
+  "data_schema": {
     "type": "object",
     "properties": {
       "prs": { "type": "array", "description": "List of PR objects" },
@@ -168,7 +168,12 @@ Content-Type: application/json
 }
 ```
 
-**`dataSchema`** defines the data contract. Cache POSTs are validated against it — malformed data returns 400.
+**`data_schema` (REQUIRED)** defines the data contract between the fetcher and the widget. Cache POSTs are validated against it — malformed data returns 400.
+
+> ⚠️ **Always include `data_schema`** when creating widgets. This ensures:
+> 1. Data validation on cache POSTs (400 on schema mismatch)
+> 2. Clear documentation of expected data structure
+> 3. AI agents know the exact format to produce
 
 ### Step 2: Add to Dashboard
 
