@@ -1,17 +1,17 @@
-import { MessageSquare, Shield, Sparkles, RefreshCw } from "lucide-react";
+import { MessageSquare, Database, Sparkles, RefreshCw } from "lucide-react";
 
 const features = [
   {
     icon: MessageSquare,
     title: "Natural Language Widgets",
     description:
-      "OpenClaw builds widgets via natural language — no coding, no config files.",
+      "OpenClaw builds widgets via natural language — no coding, no config files, no API keys.",
   },
   {
-    icon: Shield,
-    title: "Encrypted Credentials",
+    icon: Database,
+    title: "Any Data Source",
     description:
-      "OpenClaw manages credentials in encrypted SQLite — no .env files to edit.",
+      "Widgets can access anything OpenClaw can — emails, calendars, APIs, CLI tools, and more.",
   },
   {
     icon: Sparkles,
@@ -32,10 +32,10 @@ export function Features() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-16 text-center">
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Everything you need to build dashboards
+            See all of your data, in any form you can imagine
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Powerful features that let you focus on insights, not configuration.
+            Describe what you want to see. Your AI handles the rest.
           </p>
         </div>
 

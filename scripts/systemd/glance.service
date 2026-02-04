@@ -1,0 +1,16 @@
+[Unit]
+Description=Glance Dashboard
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=__GLANCE_DIR__
+ExecStart=__PNPM_PATH__ dev
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:__HOME__/.local/state/glance/glance.log
+StandardError=append:__HOME__/.local/state/glance/glance.error.log
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+
+[Install]
+WantedBy=default.target

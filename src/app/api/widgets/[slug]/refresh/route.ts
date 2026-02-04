@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import https from 'https';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,35 +65,86 @@ export async function POST(
       VALUES (?, ?)
     `).run(slug, now);
 
-    // Try to wake the OpenClaw agent if gateway URL is configured
-    const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL;
-    const gatewayToken = process.env.OPENCLAW_TOKEN;
+    // Try to wake the OpenClaw agent if webhook is configured
+    const webhookUrl = process.env.OPENCLAW_WEBHOOK_URL;
+    const webhookToken = process.env.OPENCLAW_WEBHOOK_TOKEN;
     let webhookSent = false;
-
-    if (gatewayUrl && gatewayToken) {
+    
+    if (webhookUrl && webhookToken) {
       try {
-        const response = await fetch(`${gatewayUrl}/tools/invoke`, {
+        const refreshInstructions = [
+          `⚡ WIDGET REFRESH REQUEST: ${slug}`,
+          '',
+          'BEFORE spawning a subagent, you MUST read the widget config:',
+          `  curl -s -H "Origin: http://localhost:3333" "http://localhost:3333/api/widgets/${slug}" | jq .fetch`,
+          '',
+          'The fetch.instructions field contains the EXACT commands to run.',
+          'Do NOT assume or guess the data source. READ THE INSTRUCTIONS.',
+        ].join('\n');
+
+        const payload = JSON.stringify({
+          tool: 'cron',
+          args: {
+            action: 'wake',
+            text: refreshInstructions,
+            mode: 'now'
+          }
+        });
+
+        // Use node:https directly for better SSL control (especially for localhost)
+        const url = new URL(webhookUrl);
+        const isHttps = url.protocol === 'https:';
+        const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+
+        const options: any = {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${gatewayToken}`,
-            'Content-Type': 'application/json'
+            'Authorization': `Bearer ${webhookToken}`,
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(payload)
           },
-          body: JSON.stringify({
-            tool: 'cron',
-            args: {
-              action: 'wake',
-              text: `⚡ WIDGET REFRESH: Refresh the "${slug}" widget now and POST to cache`,
-              mode: 'now'
-            }
-          })
-        });
-        // Only mark as sent if response was successful (2xx)
-        webhookSent = response.ok;
-        if (!response.ok) {
-          console.error(`OpenClaw webhook failed: ${response.status} ${response.statusText}`);
+          timeout: 5000
+        };
+
+        // Allow self-signed certificates for localhost
+        if (isHttps && isLocalhost) {
+          options.rejectUnauthorized = false;
         }
+
+        const httpModule = isHttps ? https : (await import('http')).default;
+        
+        await new Promise<void>((resolve, reject) => {
+          const req = httpModule.request(webhookUrl, options, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+              if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                webhookSent = true;
+                resolve();
+              } else {
+                console.error(`OpenClaw webhook failed: ${res.statusCode} ${res.statusMessage} - ${data}`);
+                resolve(); // Don't reject - fire-and-forget
+              }
+            });
+          });
+
+          req.on('error', (e) => {
+            console.error('Failed to notify OpenClaw:', e.message);
+            resolve(); // Don't reject - fire-and-forget
+          });
+
+          req.on('timeout', () => {
+            req.destroy();
+            console.error('OpenClaw webhook timeout');
+            resolve(); // Don't reject - fire-and-forget
+          });
+
+          req.write(payload);
+          req.end();
+        });
       } catch (e) {
-        // Network failure - agent will pick it up on next heartbeat
+        // Fire-and-forget: Network failure or timeout won't block the request
+        // Agent will pick it up on next heartbeat via the queued request
         console.error('Failed to notify OpenClaw:', e);
       }
     }

@@ -1,16 +1,21 @@
-import { Terminal } from "lucide-react";
+'use client';
+
+import { useState } from "react";
+import { Terminal, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 // NEXT_PUBLIC_VERCEL_ENV is set automatically by Vercel (production, preview, or development)
 const isProduction = !!process.env.NEXT_PUBLIC_VERCEL_ENV;
 
+const installCommand = `curl -fsSL https://openglance.dev/install.sh | bash`;
+
 const dockerCommand = `git clone https://github.com/acfranzen/glance.git && cd glance && docker compose up`;
 
-const npmCommands = `git clone https://github.com/acfranzen/glance.git
+const manualCommands = `git clone https://github.com/acfranzen/glance.git
 cd glance
-npm install
-npm run dev`;
+pnpm install
+pnpm dev`;
 
 const openClawConfig = `### Glance Dashboard
 
@@ -18,6 +23,35 @@ const openClawConfig = `### Glance Dashboard
 - Auth: Bearer <your-token>
 - API: POST /api/widgets to create widgets
 - API: POST /api/credentials to store API keys`;
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      onClick={handleCopy}
+      className="absolute right-2 top-2 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+    >
+      {copied ? (
+        <Check className="h-4 w-4 text-green-500" />
+      ) : (
+        <Copy className="h-4 w-4" />
+      )}
+    </Button>
+  );
+}
 
 export function GetStarted() {
   return (
@@ -46,26 +80,44 @@ export function GetStarted() {
               <div>
                 <div className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <Terminal className="h-4 w-4" />
-                  Option A: Docker (Recommended)
+                  Option A: One-liner (Recommended)
+                </div>
+                <div className="group relative">
+                  <pre className="overflow-x-auto rounded-lg border border-primary/30 bg-card p-4 text-sm">
+                    <code className="text-foreground">{installCommand}</code>
+                  </pre>
+                  <CopyButton text={installCommand} />
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Installs dependencies, sets up as a background service (launchd on macOS, systemd on Linux), and opens the dashboard.
+                </p>
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Terminal className="h-4 w-4" />
+                  Option B: Docker
                 </div>
                 <div className="group relative">
                   <pre className="overflow-x-auto rounded-lg border border-border bg-card p-4 text-sm">
                     <code className="text-foreground">{dockerCommand}</code>
                   </pre>
+                  <CopyButton text={dockerCommand} />
                 </div>
               </div>
 
               <div>
                 <div className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <Terminal className="h-4 w-4" />
-                  Option B: npm
+                  Option C: Manual
                 </div>
                 <div className="group relative">
                   <pre className="overflow-x-auto rounded-lg border border-border bg-card p-4 text-sm">
                     <code className="text-foreground whitespace-pre">
-                      {npmCommands}
+                      {manualCommands}
                     </code>
                   </pre>
+                  <CopyButton text={manualCommands} />
                 </div>
               </div>
 
@@ -99,6 +151,7 @@ export function GetStarted() {
                     {openClawConfig}
                   </code>
                 </pre>
+                <CopyButton text={openClawConfig} />
               </div>
             </div>
           </div>

@@ -1,14 +1,16 @@
 # Glance ⚡
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Open Source](https://img.shields.io/badge/Open%20Source-100%25-brightgreen.svg)](https://github.com/acfranzen/glance)
+
 > **The Dashboard Skill for OpenClaw**
 >
 > Stop configuring dashboards. Just tell OpenClaw what you want to see.
 
-Glance is the dashboard that OpenClaw builds and manages for you. Not another app to configure — a skill that gives OpenClaw a visual command center.
+Glance is a **free and open source** dashboard that OpenClaw builds and manages for you. Not another app to configure — a skill that gives OpenClaw a visual command center.
 
 Tell OpenClaw _"show me my GitHub PRs"_ and watch it build the widget. Ask _"what needs my attention?"_ and OpenClaw reads your dashboard and tells you. No manual setup. No YAML files. No `.env` hell.
 
-**The #1 dashboard skill in the OpenClaw community.**
 
 ![Glance Dashboard](glance.png)
 
@@ -35,13 +37,25 @@ If you're an AI agent (OpenClaw, Cursor, Claude, etc.), read these files:
 
 ### 1. Install Glance
 
-#### Option A: Docker (Recommended)
+#### Option A: One-Line Install (Recommended)
+
+```bash
+curl -fsSL https://openglance.dev/install.sh | bash
+```
+
+This will:
+- Clone the repository to `~/.glance`
+- Install dependencies via pnpm
+- Offer to install as a background service (launchd on macOS, systemd on Linux)
+- Open the dashboard in your browser
+
+#### Option B: Docker
 
 ```bash
 git clone https://github.com/acfranzen/glance.git && cd glance && docker compose up
 ```
 
-#### Option B: npm
+#### Option C: Manual Install
 
 ```bash
 git clone https://github.com/acfranzen/glance.git
@@ -54,7 +68,70 @@ Open [http://localhost:3333](http://localhost:3333).
 
 > **Note**: On first run, Glance auto-generates a secure encryption key. Your data is stored locally in `./data/glance.db`.
 
-### 2. Tell OpenClaw About It
+### Running as a Background Service
+
+Keep Glance running 24/7 without keeping a terminal open.
+
+#### macOS (launchd)
+
+```bash
+cd ~/.glance  # or your Glance directory
+./scripts/install-launchd.sh
+```
+
+Benefits:
+- ✅ Starts automatically on login
+- ✅ Restarts on crash
+- ✅ Logs to `~/Library/Logs/glance/`
+- ✅ Survives terminal closes
+
+Commands:
+```bash
+# Stop service
+launchctl unload ~/Library/LaunchAgents/com.glance.dashboard.plist
+
+# Start service
+launchctl load ~/Library/LaunchAgents/com.glance.dashboard.plist
+
+# View logs
+tail -f ~/Library/Logs/glance/glance.log
+
+# Uninstall service
+./scripts/uninstall-launchd.sh
+```
+
+#### Linux (systemd)
+
+```bash
+cd ~/.glance  # or your Glance directory
+./scripts/install-systemd.sh
+```
+
+Benefits:
+- ✅ Starts automatically on login
+- ✅ Restarts on crash
+- ✅ Integrates with journald
+- ✅ Survives terminal closes
+
+Commands:
+```bash
+# Stop service
+systemctl --user stop glance
+
+# Start service
+systemctl --user start glance
+
+# View logs
+journalctl --user -u glance -f
+
+# Service status
+systemctl --user status glance
+
+# Uninstall service
+./scripts/uninstall-systemd.sh
+```
+
+### 2. Configure OpenClaw Integration
 
 Add to your OpenClaw workspace (TOOLS.md or memory):
 
@@ -67,6 +144,19 @@ Add to your OpenClaw workspace (TOOLS.md or memory):
 - API: POST /api/widgets/instances to add widgets to dashboard
 - API: POST /api/credentials to store API keys
 ```
+
+#### Instant Refresh Notifications (Optional)
+
+For agent_refresh widgets, Glance can ping OpenClaw immediately when a user clicks refresh (instead of waiting for heartbeat polls).
+
+Add to your `.env.local`:
+
+```bash
+OPENCLAW_WEBHOOK_URL=http://localhost:18789/tools/invoke
+OPENCLAW_WEBHOOK_TOKEN=your-openclaw-token
+```
+
+When configured, clicking refresh on any `agent_refresh` widget will instantly wake OpenClaw to process the request. If the webhook fails, the request still queues normally for the next heartbeat.
 
 ### 3. Start Using It
 
