@@ -6,9 +6,56 @@ import { Button } from '@/components/ui/button';
 import { 
   Clock, Cloud, FileText, Bookmark, Calendar, CheckSquare, 
   Target, Timer, Quote, Sun, Moon, Sparkles, ArrowRight,
-  LayoutGrid, Palette, Smartphone, Shield
+  LayoutGrid, Palette, Smartphone, Shield, Copy, Check
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+function InstallCommand() {
+  const [copied, setCopied] = useState(false);
+  const installCommand = "curl -fsSL https://raw.githubusercontent.com/acfranzen/glance/main/scripts/install.sh | bash";
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(installCommand);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  }
+
+  return (
+    <div className="w-full">
+      <p className="text-sm text-muted-foreground mb-3">Quick Install (macOS & Linux):</p>
+      <div className="relative group">
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/30 to-primary/20 rounded-lg blur opacity-20 group-hover:opacity-40 transition duration-300" />
+        <div className="relative flex items-center gap-2 rounded-lg border border-primary/20 bg-card/95 backdrop-blur-sm p-3 sm:p-4">
+          <code className="flex-1 text-left overflow-x-auto whitespace-nowrap text-xs sm:text-sm font-mono text-foreground">
+            {installCommand}
+          </code>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleCopy}
+            className="shrink-0 gap-2 hover:bg-primary/10"
+          >
+            {copied ? (
+              <>
+                <Check className="h-4 w-4 text-green-500" />
+                <span className="hidden sm:inline text-xs">Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-4 w-4" />
+                <span className="hidden sm:inline text-xs">Copy</span>
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const features = [
   {
@@ -116,7 +163,7 @@ export default function LandingPage() {
           </p>
           
           <div className={cn(
-            'flex flex-col sm:flex-row items-center justify-center gap-4',
+            'flex flex-col sm:flex-row items-center justify-center gap-4 mb-8',
             'opacity-0 animate-[fadeInUp_0.6s_ease-out_0.3s_forwards]'
           )}>
             <Link href="/login">
@@ -128,6 +175,14 @@ export default function LandingPage() {
             <Button variant="outline" size="lg" className="rounded-full px-8 text-lg h-14">
               View Demo
             </Button>
+          </div>
+
+          {/* Install Command */}
+          <div className={cn(
+            'mt-8 max-w-3xl mx-auto',
+            'opacity-0 animate-[fadeInUp_0.6s_ease-out_0.4s_forwards]'
+          )}>
+            <InstallCommand />
           </div>
         </div>
       </section>

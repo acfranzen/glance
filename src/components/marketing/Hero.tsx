@@ -1,8 +1,24 @@
+'use client';
+
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Check, Copy } from "lucide-react";
 
 export function Hero() {
+  const [copied, setCopied] = useState(false);
+  const installCommand = "curl -fsSL https://raw.githubusercontent.com/acfranzen/glance/main/scripts/install.sh | bash";
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(installCommand);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  }
+
   return (
     <section className="relative flex min-h-[80vh] flex-col items-center justify-center px-4 py-24 text-center">
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,oklch(0.6171_0.1375_39.0427_/_0.12),transparent)]" />
@@ -24,6 +40,39 @@ export function Hero() {
         Glance gives your OpenClaw agent a canvas to build, update, and read
         widgets — so you never have to configure a dashboard again.
       </p>
+
+      {/* Install Command */}
+      <div className="mt-10 w-full max-w-3xl">
+        <div className="relative group">
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/50 to-primary/30 rounded-lg blur opacity-30 group-hover:opacity-100 transition duration-300" />
+          <div className="relative flex items-center gap-2 rounded-lg border border-primary/20 bg-card/95 backdrop-blur-sm p-4 font-mono text-sm">
+            <code className="flex-1 text-left overflow-x-auto whitespace-nowrap text-foreground">
+              {installCommand}
+            </code>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleCopy}
+              className="shrink-0 gap-2 hover:bg-primary/10"
+            >
+              {copied ? (
+                <>
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="hidden sm:inline">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-4 w-4" />
+                  <span className="hidden sm:inline">Copy</span>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          One command to install. Works on macOS and Linux.
+        </p>
+      </div>
 
       <div className="mt-10 flex flex-col gap-4 sm:flex-row">
         <Button asChild size="lg" className="gap-2 shadow-lg shadow-primary/20">
