@@ -66,11 +66,11 @@ if [ "$NODE_VERSION" -lt 18 ]; then
     echo -e "${YELLOW}⚠️  Warning: Node.js v$NODE_VERSION detected. v18+ recommended.${NC}"
 fi
 
-# Check npm
+# Check npm is available
 echo -e "${BLUE}📦 Checking npm...${NC}"
 if ! command -v npm &> /dev/null; then
     echo -e "${RED}❌ Error: npm not found${NC}"
-    echo "npm should be installed with Node.js"
+    echo "npm should be installed with Node.js. Please reinstall Node.js."
     exit 1
 fi
 

@@ -45,7 +45,7 @@ curl -fsSL https://openglance.dev/install.sh | bash
 
 This will:
 - Clone the repository to `~/.glance`
-- Install dependencies via pnpm
+- Install dependencies
 - Offer to install as a background service (launchd on macOS, systemd on Linux)
 - Open the dashboard in your browser
 
