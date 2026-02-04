@@ -89,8 +89,9 @@ export function Hero() {
 
       {/* Dashboard Preview - Full Width */}
       <div className="mt-20 w-full max-w-7xl px-6">
-        <div className="relative rounded-2xl border border-border bg-gradient-to-b from-card to-card/80 p-2 sm:p-3 shadow-2xl shadow-black/20">
-          <div className="overflow-hidden rounded-xl">
+        <div className="relative rounded-2xl bg-gradient-to-b from-muted/80 to-muted/40 p-1 shadow-2xl shadow-black/30 ring-1 ring-white/10">
+          <div className="rounded-xl bg-background/50 p-1">
+            <div className="overflow-hidden rounded-lg ring-1 ring-border">
             {/* Light mode image */}
             <Image
               src="/glance-light.png"
@@ -111,6 +112,7 @@ export function Hero() {
               priority
               unoptimized
             />
+            </div>
           </div>
         </div>
       </div>
