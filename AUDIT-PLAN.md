@@ -1,205 +1,129 @@
-# Glance Documentation Audit Plan
+# Glance Documentation Audit
 
-## Mission
+## Two Goals
 
-Audit the entire Glance codebase to ensure documentation is accurate, consistent, and reflects the correct design philosophy.
+### 1. Are the docs accurate to the code?
+- Do the API endpoints documented actually exist and work as described?
+- Do the code examples actually run?
+- Are the component props and hooks documented correctly?
+- Does the widget creation flow actually work end-to-end?
 
-## Core Design Philosophy
-
-**Glance is a dashboard that OpenClaw manages via API.** The widget ecosystem has three fetch types with a clear hierarchy:
-
-### Fetch Type Hierarchy (IMPORTANT)
-
-1. **`server_code`** (PRIMARY) — Widget's server-side code calls external APIs using credentials stored in Glance's encrypted database. This is the default and most common pattern.
-   - Example: GitHub PRs widget calls GitHub API with stored PAT
-   - Example: Weather widget calls OpenWeather API with stored key
-   - Example: Anthropic usage widget calls Anthropic Admin API
-
-2. **`webhook`** — External services push data to Glance's cache endpoint. Used when data is event-driven.
-   - Example: Stripe pushes payment events
-   - Example: GitHub webhooks for repo activity
-
-3. **`agent_refresh`** (FALLBACK) — OpenClaw agent collects data and POSTs to cache. **Only use when data cannot be accessed via API.**
-   - Example: Claude CLI `/status` (requires interactive PTY, no API exists)
-   - Example: Local Homebrew package count (requires local shell access)
-   - Example: iCloud calendar via icalBuddy (no API, local software only)
-
-### Key Principle
-
-**If there's an API for it, use `server_code`, not `agent_refresh`.** The agent_refresh pattern exists for edge cases where the data source has no API or requires local machine access.
+### 2. Are the docs sufficient for other OpenClaw agents?
+- Can an agent read SKILL.md and successfully create a widget without guessing?
+- Are the required steps clear and complete?
+- Are common errors and their solutions documented?
+- Is the fetch type decision clear (when to use server_code vs agent_refresh)?
 
 ---
 
-## Audit Checklist
+## Audit Process
 
-### 1. Documentation Consistency
+### Phase 1: Test the documented flows (1 hour)
 
-#### Files to Audit
-- [ ] `README.md` — User-facing overview
-- [ ] `SKILL.md` — Agent quick reference
-- [ ] `docs/widget-sdk.md` — Full SDK documentation
-- [ ] `docs/dashboard-api.md` — Dashboard management API
-- [ ] Any other `.md` files in `docs/`
+Walk through each documented workflow and verify it works:
 
-#### Check For
-- [ ] Consistent fetch type hierarchy (server_code > webhook > agent_refresh)
-- [ ] No language suggesting agent_refresh is primary or preferred
-- [ ] Clear explanation of when to use each fetch type
-- [ ] Decision trees/flowcharts match the hierarchy
-- [ ] Examples use appropriate fetch types (GitHub = server_code, not agent_refresh)
+```bash
+cd /tmp/glance-test
+npm run dev
+```
 
-### 2. Code Examples Audit
+**Widget Creation Flow:**
+1. Follow SKILL.md step-by-step to create a simple widget
+2. Note any steps that are wrong, missing, or confusing
+3. Verify the widget actually appears on the dashboard
 
-#### In All Documentation
-- [ ] Widget creation examples default to `server_code` pattern
-- [ ] `agent_refresh` examples are clearly marked as "for edge cases" or "when no API exists"
-- [ ] Credential management examples show server_code flow
-- [ ] No examples incorrectly use agent_refresh for API-accessible data
+**API Endpoints:**
+- Test each endpoint in the API Reference section
+- Verify request/response formats match documentation
+- Note any undocumented parameters or behaviors
 
-### 3. SKILL.md Specific Audit
+**Server Code:**
+- Create a widget with server_code
+- Verify `getCredential()` works as documented
+- Test error handling
 
-#### Current Issues to Fix
-- [ ] Remove or reduce emphasis on agent_refresh as the main pattern
-- [ ] Update "Fetch Type Decision Tree" to prioritize server_code
-- [ ] Update "Most widgets should use agent_refresh" — this is WRONG
-- [ ] Ensure Quick Start shows server_code pattern first
-- [ ] Agent Refresh Contract section should emphasize it's a fallback
+**Agent Refresh:**
+- Create a widget with agent_refresh
+- POST to cache endpoint
+- Verify data appears in widget
 
-#### Restructure To
-1. Quick Start → server_code example (e.g., GitHub PRs)
-2. Fetch Types → clear hierarchy with server_code first
-3. Server Code section → expanded, primary documentation
-4. Webhook section → secondary
-5. Agent Refresh section → clearly marked as fallback for edge cases
+### Phase 2: Document gaps and errors (30 min)
 
-### 4. widget-sdk.md Specific Audit
+Create `AUDIT-FINDINGS.md` with:
+- **Inaccuracies:** Where docs don't match code
+- **Missing info:** Steps an agent would need but aren't documented
+- **Confusing sections:** Parts that could trip up an agent
 
-#### Check
-- [ ] "Fetch Type Decision Tree" matches hierarchy
-- [ ] "When to Use Server Code" section exists and is prominent
-- [ ] agent_refresh documentation clearly states it's for edge cases
-- [ ] Examples section shows server_code widgets first
-- [ ] OpenClaw Integration Guide reflects correct hierarchy
+### Phase 3: Fix the docs (1-2 hours)
 
-### 5. README.md Specific Audit
+Priority fixes:
+1. Correct any inaccurate information
+2. Add missing steps or details
+3. Clarify confusing sections
+4. Ensure examples are copy-paste ready
 
-#### Check
-- [ ] "How It Works" section implies correct architecture
-- [ ] "AI Agents: Start Here" TL;DR shows server_code flow
-- [ ] Feature descriptions don't overemphasize agent collection
-- [ ] API Reference table is complete and accurate
+### Phase 4: Verify fixes (30 min)
 
-### 6. Code Audit (verify docs match implementation)
+- Re-run the documented flows
+- Confirm an agent could follow the docs successfully
+- Browser verify widgets render correctly
 
-#### Files to Check
-- [ ] `src/app/api/widgets/route.ts` — Widget definition API
-- [ ] `src/app/api/widgets/[slug]/cache/route.ts` — Cache endpoint
-- [ ] `src/app/api/widgets/[slug]/execute/route.ts` — Server code execution
-- [ ] `src/app/api/credentials/route.ts` — Credential management
-- [ ] `src/lib/widget-executor.ts` — Server code VM
-- [ ] `src/components/CustomWidgetWrapper.tsx` — Widget rendering
+---
 
-#### Verify
-- [ ] Server code execution actually works as documented
-- [ ] `getCredential()` function works in server code VM
-- [ ] Cache endpoint validates against data_schema
-- [ ] Webhook refresh flow works as documented
+## Files to Audit
 
-### 7. Existing Widgets Audit
+| File | Purpose | Priority |
+|------|---------|----------|
+| `SKILL.md` | Agent quick reference | HIGH |
+| `docs/widget-sdk.md` | Full SDK docs | HIGH |
+| `README.md` | Overview & setup | MEDIUM |
+| `docs/dashboard-api.md` | Dashboard management | LOW |
 
-#### Check All Custom Widgets in Database
-- [ ] Which fetch type does each use?
-- [ ] Are any using agent_refresh when server_code would work?
-- [ ] Document which widgets legitimately need agent_refresh
+---
 
-#### Current Widgets (audit these)
-- `claude-code-usage` — agent_refresh ✓ (no API, requires PTY)
-- `open-prs` — Should this be server_code? (GitHub API exists)
-- `recent-emails` — Should this be server_code? (Gmail API exists via gog/OAuth)
-- `calendar-weather` — agent_refresh ✓ (icalBuddy has no API, wttr.in could be server_code)
+## Key Questions for Each Section
+
+### For API Documentation
+- Does this endpoint exist?
+- Does the request format work?
+- Does the response match what's documented?
+- Are required headers documented?
+
+### For Code Examples
+- Does this code actually run?
+- Are imports/dependencies mentioned?
+- Would copy-pasting this work?
+
+### For Workflows
+- Are all steps listed?
+- Is the order correct?
+- What could go wrong? Is that covered?
 
 ---
 
 ## Deliverables
 
-### 1. Issue Report
-Create a list of all inconsistencies found, categorized by file.
-
-### 2. Fix PRs
-- PR 1: SKILL.md restructure (flip hierarchy, fix examples)
-- PR 2: widget-sdk.md updates (same hierarchy fixes)
-- PR 3: README.md tweaks (if needed)
-- PR 4: Widget migrations (move any widgets from agent_refresh to server_code where appropriate)
-
-### 3. Summary Document
-Write a brief summary of changes made and rationale.
-
----
-
-## Execution Notes
-
-### For Claude Code / Coding Agent
-
-1. **Read all documentation first** before making changes
-2. **Create a branch** `zeus/docs-audit` or similar
-3. **Make atomic commits** — one logical change per commit
-4. **Test any code changes** — run the dev server, verify widgets work
-5. **Browser verify** — check the dashboard renders correctly after changes
-
-### Time Estimate
-- Documentation audit: 30-60 minutes
-- Fixes: 1-2 hours
-- Testing: 30 minutes
-- Total: ~2-3 hours
-
-### Commands to Start
-
-```bash
-cd /tmp/glance-test
-git checkout main && git pull
-git checkout -b zeus/docs-audit
-
-# Read the docs first
-cat README.md
-cat SKILL.md
-cat docs/widget-sdk.md
-
-# Check existing widgets
-sqlite3 data/glance.db "SELECT slug, json_extract(fetch, '$.type') FROM custom_widgets"
-
-# Start dev server for testing
-npm run dev
-```
+1. **AUDIT-FINDINGS.md** — List of issues found
+2. **PR with fixes** — All documentation corrections
+3. **Brief summary** — What was changed and why
 
 ---
 
 ## Success Criteria
 
-After the audit:
-1. All documentation consistently presents server_code as the primary pattern
-2. agent_refresh is clearly positioned as a fallback for edge cases
-3. Decision trees and examples match the hierarchy
-4. No contradictions between README, SKILL.md, and widget-sdk.md
-5. Existing widgets use appropriate fetch types
+An OpenClaw agent should be able to:
+- [ ] Read SKILL.md and create a working widget on first try
+- [ ] Understand when to use server_code vs agent_refresh
+- [ ] Find answers to common problems in the docs
+- [ ] Trust that code examples work as written
 
 ---
 
 ## Future Considerations
 
-### Remove Webhook Fetch Type
-**Status:** Under consideration for future simplification
+### Simplify to Two Fetch Types
+Consider removing `webhook` as a documented pattern:
+- `server_code` — Data accessible via API
+- `agent_refresh` — Data NOT accessible via API (local CLI, PTY, etc.)
 
-**Rationale:**
-- For a personal OpenClaw-managed dashboard, webhooks add complexity without much benefit
-- Polling via `server_code` (every 5-15 min) handles most real-time needs
-- Receiving webhooks requires public endpoint (tunnels/Tailscale), adds friction
-- Simplifies the model to a clean dichotomy:
-  - `server_code` — Data accessible via API
-  - `agent_refresh` — Data NOT accessible via API
-
-**If removed:**
-- Remove webhook documentation from SKILL.md and widget-sdk.md
-- Remove webhook-specific code paths
-- Cache endpoint still accepts POSTs (agent_refresh uses it), so technically webhooks still "work" — just not documented/encouraged
-
-**Decision:** Defer for now. Focus audit on fixing server_code vs agent_refresh hierarchy. Revisit webhook removal after docs are consistent.
+Webhooks still technically work (cache endpoint accepts POSTs) but may not need first-class documentation for a personal dashboard use case.

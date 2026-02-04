@@ -1,101 +1,101 @@
-# Glance Documentation Audit Task
+# Glance Documentation Audit
 
-You are auditing the Glance dashboard project to ensure documentation accuracy and consistency.
+Audit the Glance docs with two goals:
 
-## Context
+1. **Accuracy** — Do the docs match the actual code?
+2. **Completeness** — Can another OpenClaw agent use these docs to create widgets without issues?
 
-Glance is a dashboard skill for OpenClaw. Widgets can fetch data in three ways:
+## Setup
 
-1. **server_code** (PRIMARY) — Widget's server-side JS calls external APIs using credentials stored in Glance
-2. **webhook** — External services push data to cache
-3. **agent_refresh** (FALLBACK) — OpenClaw agent manually collects data. **Only for data with no API** (e.g., CLI tools, PTY sessions)
-
-**CRITICAL**: The current docs incorrectly emphasize `agent_refresh` as the main pattern. It should be a fallback. Fix this throughout.
-
-## Your Task
-
-### Phase 1: Read & Understand (15 min)
 ```bash
 cd /tmp/glance-test
-cat README.md
-cat SKILL.md  
-cat docs/widget-sdk.md
-cat AUDIT-PLAN.md  # Detailed checklist
+npm run dev  # Start the server
 ```
 
-### Phase 2: Audit & Document Issues (30 min)
-Create `AUDIT-FINDINGS.md` listing every inconsistency:
-- Places where agent_refresh is presented as primary
-- Incorrect decision trees
-- Misleading examples
-- Missing server_code documentation
+## Phase 1: Test the Docs (1 hour)
 
-### Phase 3: Fix Documentation (1-2 hours)
+### Test Widget Creation Flow
+Follow SKILL.md exactly to create a widget. Note anything that:
+- Doesn't work as written
+- Is missing steps
+- Would confuse an agent
 
-#### SKILL.md Priority Fixes:
-1. Change "Most widgets should use agent_refresh" → "Most widgets should use server_code"
-2. Update Fetch Type Decision Tree — server_code first
-3. Add prominent "Server Code Pattern" section
-4. Relabel agent_refresh section as "Fallback: Agent Refresh"
-5. Update Quick Start to show server_code example
-
-#### widget-sdk.md Priority Fixes:
-1. Update decision tree hierarchy
-2. Expand server_code documentation  
-3. Add "When to Use Each Fetch Type" section with clear criteria
-4. Update examples to default to server_code
-
-#### README.md (light touch):
-1. Update "AI Agents: Start Here" TL;DR if needed
-2. Ensure no misleading statements about agent_refresh
-
-### Phase 4: Verify Existing Widgets (20 min)
+### Test API Endpoints  
+For each endpoint in the API Reference:
 ```bash
-sqlite3 data/glance.db "SELECT slug, json_extract(fetch, '$.type') as type FROM custom_widgets"
+# Example: Test widget list
+curl http://localhost:3333/api/widgets
+
+# Test creating a widget (use actual example from docs)
+# Does it work? Does response match docs?
 ```
 
-For each widget using agent_refresh, determine if it could use server_code instead:
-- `open-prs` — GitHub API exists, could be server_code
-- `recent-emails` — Gmail API exists, could be server_code (needs OAuth)
-- `claude-code-usage` — No API, must stay agent_refresh ✓
-- `calendar-weather` — icalBuddy has no API, agent_refresh needed ✓
+### Test Server Code Pattern
+Create a widget with `fetch.type = "server_code"`. Verify:
+- `getCredential()` works
+- Server code executes
+- Widget displays data
 
-Document findings. Optionally migrate widgets if straightforward.
+### Test Agent Refresh Pattern
+Create a widget with `fetch.type = "agent_refresh"`. Verify:
+- POST to `/api/widgets/{slug}/cache` works
+- Data appears in widget
+- Instructions are clear enough to follow
 
-### Phase 5: Test & Commit (30 min)
+## Phase 2: Document Issues (30 min)
+
+Create `AUDIT-FINDINGS.md`:
+
+```markdown
+# Audit Findings
+
+## Inaccuracies (docs don't match code)
+- [ ] Issue 1...
+- [ ] Issue 2...
+
+## Missing Information (agent would get stuck)
+- [ ] Missing step...
+- [ ] Undocumented requirement...
+
+## Confusing Sections (could be clearer)
+- [ ] Section X needs...
+```
+
+## Phase 3: Fix the Docs (1-2 hours)
+
+Fix issues in priority order:
+1. Inaccuracies (wrong info is worse than missing info)
+2. Missing steps that would block an agent
+3. Clarity improvements
+
+Files to update:
+- `SKILL.md` (agent quick reference)
+- `docs/widget-sdk.md` (full docs)
+- `README.md` (if needed)
+
+## Phase 4: Verify & Ship (30 min)
+
+1. Re-test the flows you fixed
+2. Browser verify dashboard works: http://localhost:3333
+3. Commit and PR:
+
 ```bash
-npm run dev  # Start server
-# Open http://localhost:3333 and verify widgets work
-
+git checkout -b zeus/docs-audit
 git add -A
-git commit -m "docs: audit and fix fetch type hierarchy
-
-- Position server_code as primary pattern
-- Relabel agent_refresh as fallback for edge cases
-- Update decision trees and examples
-- Fix misleading statements throughout"
-
+git commit -m "docs: audit fixes - accuracy and completeness improvements"
 git push origin zeus/docs-audit
-gh pr create --title "📚 Docs audit: Fix fetch type hierarchy" --body "See AUDIT-FINDINGS.md for details"
+gh pr create --title "📚 Docs audit fixes" --body "See AUDIT-FINDINGS.md"
 ```
-
-## Key Files
-- `/tmp/glance-test/SKILL.md`
-- `/tmp/glance-test/docs/widget-sdk.md`
-- `/tmp/glance-test/README.md`
-- `/tmp/glance-test/AUDIT-PLAN.md` (detailed checklist)
 
 ## Success Criteria
-- [ ] server_code is clearly the primary/default pattern
-- [ ] agent_refresh is clearly a fallback for edge cases
-- [ ] Decision trees updated in both SKILL.md and widget-sdk.md
-- [ ] No contradictions between docs
-- [ ] PR created with all changes
+
+After your fixes, another OpenClaw agent should be able to:
+- Read SKILL.md → create a working widget on first try
+- Know when to use server_code vs agent_refresh
+- Find solutions to common errors
+- Trust that examples work as written
 
 ## Don't
-- Don't break working code
-- Don't remove agent_refresh docs entirely (it's still valid for edge cases)
-- Don't make the docs overly complex
-- Don't forget to test that the dashboard still works
-
-Start by reading AUDIT-PLAN.md for the full checklist, then proceed.
+- Don't refactor code (docs only)
+- Don't add features
+- Don't overcomplicate — clear and accurate beats comprehensive
