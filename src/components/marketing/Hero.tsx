@@ -87,11 +87,11 @@ export function Hero() {
         100% open source · MIT License
       </p>
 
-      {/* Dashboard Preview */}
-      <div className="mt-16 w-full max-w-5xl px-4">
-        <div className="relative rounded-xl border border-border/50 bg-card/50 p-2 shadow-2xl">
-          <div className="overflow-hidden rounded-lg">
-{/* Light mode image */}
+      {/* Dashboard Preview - Full Width */}
+      <div className="mt-20 w-full max-w-7xl px-6">
+        <div className="relative rounded-2xl border border-border bg-gradient-to-b from-card to-card/80 p-2 sm:p-3 shadow-2xl shadow-black/20">
+          <div className="overflow-hidden rounded-xl">
+            {/* Light mode image */}
             <Image
               src="/glance-light.png"
               alt="Glance Dashboard"
