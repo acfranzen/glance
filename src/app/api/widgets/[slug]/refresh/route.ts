@@ -69,12 +69,16 @@ export async function POST(
     const webhookUrl = process.env.OPENCLAW_WEBHOOK_URL;
     const webhookToken = process.env.OPENCLAW_WEBHOOK_TOKEN;
     let webhookSent = false;
-
+    
     if (webhookUrl && webhookToken) {
       try {
         const payload = JSON.stringify({
-          tool: 'wake',
-          text: `⚡ WIDGET REFRESH: ${slug}`
+          tool: 'cron',
+          args: {
+            action: 'wake',
+            text: `⚡ WIDGET REFRESH: ${slug}`,
+            mode: 'now'
+          }
         });
 
         // Use node:https directly for better SSL control (especially for localhost)
