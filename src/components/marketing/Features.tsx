@@ -5,7 +5,7 @@ const features = [
     icon: MessageSquare,
     title: "Natural Language Widgets",
     description:
-      "OpenClaw builds widgets via natural language — no coding, no config files.",
+      "OpenClaw builds widgets via natural language — no coding, no config files, no API keys.",
   },
   {
     icon: Database,
