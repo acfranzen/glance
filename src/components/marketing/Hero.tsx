@@ -91,12 +91,23 @@ export function Hero() {
       <div className="mt-16 w-full max-w-5xl px-4">
         <div className="relative rounded-xl border border-border/50 bg-card/50 p-2 shadow-2xl">
           <div className="overflow-hidden rounded-lg">
+{/* Light mode image */}
             <Image
-              src="/glance.png?v=2"
+              src="/glance-light.png"
               alt="Glance Dashboard"
-              width={2560}
-              height={1440}
-              className="w-full h-auto"
+              width={2880}
+              height={1800}
+              className="w-full h-auto dark:hidden"
+              priority
+              unoptimized
+            />
+            {/* Dark mode image */}
+            <Image
+              src="/glance-dark.png"
+              alt="Glance Dashboard"
+              width={2880}
+              height={1800}
+              className="w-full h-auto hidden dark:block"
               priority
               unoptimized
             />
