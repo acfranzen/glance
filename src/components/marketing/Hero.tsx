@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Check, Copy } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 
 export function Hero() {
   const [copied, setCopied] = useState(false);
@@ -69,14 +69,8 @@ export function Hero() {
         </p>
       </div>
 
-      <div className="mt-10 flex flex-col gap-4 sm:flex-row">
+      <div className="mt-10">
         <Button asChild size="lg" className="gap-2 shadow-lg shadow-primary/20">
-          <Link href="#get-started">
-            Get Started
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </Button>
-        <Button asChild variant="outline" size="lg">
           <Link href="https://github.com/acfranzen/glance" target="_blank">
             View on GitHub
           </Link>
@@ -91,7 +85,7 @@ export function Hero() {
       <div className="mt-20 w-full max-w-[95rem] px-4 sm:px-6 lg:px-8">
         <div className="relative">
           {/* Shadow glow effect */}
-          <div className="absolute -inset-4 bg-primary/5 blur-3xl rounded-3xl" />
+          <div className="absolute -inset-8 bg-primary/20 blur-3xl rounded-3xl" />
           
           {/* Main container */}
           <div className="relative rounded-2xl overflow-hidden shadow-[0_20px_70px_-15px_rgba(0,0,0,0.5)] ring-1 ring-white/10">
