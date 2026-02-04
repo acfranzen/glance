@@ -55,6 +55,10 @@ export async function GET(
     return NextResponse.json({ 
       has_cache: false,
       message: "No cached data available" 
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
     });
   }
 
@@ -94,6 +98,10 @@ export async function GET(
     pending_refresh: pendingRefresh ? {
       requested_at: pendingRefresh.requested_at
     } : null,
+  }, {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+    },
   });
 }
 
