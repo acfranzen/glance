@@ -1,4 +1,4 @@
-import { MessageSquare, Shield, Sparkles, RefreshCw } from "lucide-react";
+import { MessageSquare, Database, Sparkles, RefreshCw } from "lucide-react";
 
 const features = [
   {
@@ -8,10 +8,10 @@ const features = [
       "OpenClaw builds widgets via natural language — no coding, no config files.",
   },
   {
-    icon: Shield,
-    title: "Encrypted Credentials",
+    icon: Database,
+    title: "Any Data Source",
     description:
-      "OpenClaw manages credentials in encrypted SQLite — no .env files to edit.",
+      "Widgets can access anything OpenClaw can — emails, calendars, APIs, CLI tools, and more.",
   },
   {
     icon: Sparkles,
