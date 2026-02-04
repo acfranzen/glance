@@ -373,6 +373,41 @@ Content-Type: application/json
 }
 ```
 
+### Immediate Refresh via Webhook
+
+**For `agent_refresh` widgets, users can trigger immediate refreshes via the UI refresh button.**
+
+When configured with `OPENCLAW_GATEWAY_URL` and `OPENCLAW_TOKEN` environment variables, clicking the refresh button will:
+1. Store a refresh request in the database (fallback for polling)
+2. **Immediately POST a wake notification to OpenClaw** via `/api/sessions/wake`
+3. The agent receives a prompt to refresh that specific widget now
+
+This eliminates the delay of waiting for the next heartbeat poll.
+
+**Environment variables** (add to `.env.local`):
+```bash
+OPENCLAW_GATEWAY_URL=http://localhost:18789
+OPENCLAW_TOKEN=your-gateway-token
+```
+
+**How it works:**
+1. User clicks refresh button on widget
+2. Glance POSTs to `/api/widgets/{slug}/refresh`
+3. If webhook configured, Glance immediately notifies OpenClaw: `⚡ WIDGET REFRESH: Refresh the "{slug}" widget now and POST to cache`
+4. Agent wakes up, collects fresh data, POSTs to cache
+5. Widget re-renders with updated data
+
+**Response includes webhook status:**
+```json
+{
+  "status": "refresh_requested",
+  "webhook_sent": true,
+  "fallback_queued": true
+}
+```
+
+If webhook fails or isn't configured, the DB fallback ensures the next heartbeat/poll will pick it up.
+
 ### Rules
 - **Always include `fetchedAt`** timestamp
 - **Don't overwrite on errors** - let widget use stale data
