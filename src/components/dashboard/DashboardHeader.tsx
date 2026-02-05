@@ -47,7 +47,12 @@ export function DashboardHeader() {
       <div className="flex items-center justify-between h-16 px-4 md:px-6">
         {/* Logo */}
         <div className="flex items-center gap-2 sm:gap-4">
-          <h1 className="font-serif text-xl sm:text-2xl font-bold text-foreground">
+          <img
+            src="/icon.png"
+            alt="Glance"
+            className="h-8 w-8"
+          />
+          <h1 className="text-xl sm:text-2xl font-semibold text-foreground tracking-tight">
             Glance
           </h1>
           <span className="hidden sm:inline text-xs text-muted-foreground">
