@@ -1,11 +1,18 @@
-# Glance ⚡
+<p align="center">
+  <img src="public/logo-text.png" alt="Glance" width="300" />
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Open Source](https://img.shields.io/badge/Open%20Source-100%25-brightgreen.svg)](https://github.com/acfranzen/glance)
+<p align="center">
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
+  <a href="https://github.com/acfranzen/glance"><img src="https://img.shields.io/badge/Open%20Source-100%25-brightgreen.svg" alt="Open Source" /></a>
+</p>
 
-> **The Dashboard Skill for OpenClaw**
->
-> Stop configuring dashboards. Just tell OpenClaw what you want to see.
+<p align="center">
+  <strong>The Dashboard Skill for OpenClaw</strong><br/>
+  Stop configuring dashboards. Just tell OpenClaw what you want to see.
+</p>
+
+---
 
 Glance is a **free and open source** dashboard that OpenClaw builds and manages for you. Not another app to configure — a skill that gives OpenClaw a visual command center.
 
