@@ -57,8 +57,8 @@ export interface WidgetPackage {
   fetch: FetchConfig;
   cache?: CacheConfig;
   
-  // Data validation schema (JSON Schema format)
-  data_schema?: DataSchema;
+  // Data validation schema (JSON Schema format) - REQUIRED
+  data_schema: DataSchema;
 }
 
 /**
@@ -100,7 +100,7 @@ export function encodeWidgetPackage(
     setup: widget.setup || undefined,
     fetch: widget.fetch,
     cache: widget.cache || undefined,
-    data_schema: widget.data_schema || undefined,
+    data_schema: widget.data_schema,
   };
 
   const json = JSON.stringify(pkg);
@@ -260,6 +260,23 @@ export function validateWidgetPackage(pkg: WidgetPackage): ValidationResult {
     warnings.push("server_code_enabled is true but no server_code provided");
   }
 
+  // Validate data_schema (REQUIRED)
+  if (!pkg.data_schema) {
+    errors.push("Missing data_schema (required for cache validation)");
+  } else {
+    if (pkg.data_schema.type !== "object") {
+      errors.push("data_schema.type must be 'object'");
+    }
+    if (!pkg.data_schema.properties || typeof pkg.data_schema.properties !== "object") {
+      errors.push("data_schema.properties is required");
+    }
+    if (!Array.isArray(pkg.data_schema.required)) {
+      errors.push("data_schema.required must be an array");
+    } else if (!pkg.data_schema.required.includes("fetchedAt")) {
+      errors.push("data_schema.required must include 'fetchedAt'");
+    }
+  }
+
   // Validate cache config if provided
   if (pkg.cache) {
     if (typeof pkg.cache.ttl_seconds !== "number" || pkg.cache.ttl_seconds < 0) {
@@ -317,7 +334,7 @@ export function packageToWidget(pkg: WidgetPackage): Omit<
     fetch: pkg.fetch,
     cache: pkg.cache || null,
     author: pkg.meta.author || null,
-    data_schema: pkg.data_schema || null,
+    data_schema: pkg.data_schema,
   };
 }
 

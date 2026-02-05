@@ -86,10 +86,10 @@ export async function POST(request: NextRequest) {
       min_size: widget.min_size,
       refresh_interval: widget.refresh_interval,
       fetch: widget.fetch,
-      credentials: widget.credentials.length > 0 ? widget.credentials : undefined,
+      credentials: widget.credentials, // Always required (can be empty array)
       setup: widget.setup || undefined,
       cache: widget.cache || undefined,
-      data_schema: widget.data_schema || undefined,
+      data_schema: widget.data_schema, // Always required
     }));
 
     // Build layout

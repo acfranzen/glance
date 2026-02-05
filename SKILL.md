@@ -36,6 +36,60 @@ curl -X POST "$GLANCE_URL/api/widgets/my-widget/cache" \
 browser action:open targetUrl:"$GLANCE_URL"
 ```
 
+## AI Structured Output Generation (REQUIRED)
+
+When generating widget definitions, **use the JSON Schema** at `docs/schemas/widget-schema.json` with your AI model's structured output mode:
+- **Anthropic**: Use `tool_use` with the schema
+- **OpenAI**: Use `response_format: { type: "json_schema", schema }`
+
+The schema enforces all required fields at generation time — malformed widgets cannot be produced.
+
+### Required Fields Checklist
+Every widget **MUST** have these fields (the schema enforces them):
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `name` | string | Non-empty, human-readable |
+| `slug` | string | Lowercase kebab-case (`my-widget`) |
+| `source_code` | string | Valid JSX with Widget function |
+| `default_size` | `{ w: 1-12, h: 1-20 }` | Grid units |
+| `min_size` | `{ w: 1-12, h: 1-20 }` | Cannot resize smaller |
+| `fetch.type` | enum | `"server_code"` \| `"webhook"` \| `"agent_refresh"` |
+| `fetch.instructions` | string | **REQUIRED if type is `agent_refresh`** |
+| `fetch.schedule` | string | **REQUIRED if type is `agent_refresh`** (cron) |
+| `data_schema.type` | `"object"` | Always object |
+| `data_schema.properties` | object | Define each field |
+| `data_schema.required` | array | **MUST include `"fetchedAt"`** |
+| `credentials` | array | Use `[]` if none needed |
+
+### Example: Minimal Valid Widget
+
+```json
+{
+  "name": "My Widget",
+  "slug": "my-widget",
+  "source_code": "function Widget({ serverData }) { return <div>{serverData?.value}</div>; }",
+  "default_size": { "w": 2, "h": 2 },
+  "min_size": { "w": 1, "h": 1 },
+  "fetch": {
+    "type": "agent_refresh",
+    "schedule": "*/15 * * * *",
+    "instructions": "## Data Collection\nCollect the data...\n\n## Cache Update\nPOST to /api/widgets/my-widget/cache"
+  },
+  "data_schema": {
+    "type": "object",
+    "properties": {
+      "value": { "type": "number" },
+      "fetchedAt": { "type": "string", "format": "date-time" }
+    },
+    "required": ["value", "fetchedAt"]
+  },
+  "credentials": []
+}
+```
+
+---
+
 ## ⚠️ Widget Creation Checklist (MANDATORY)
 
 Every widget must complete ALL steps before being considered done:
@@ -731,15 +785,17 @@ To summarize dashboard for user:
 
 ## ⚠️ Rules & Gotchas
 
-1. **Browser verify EVERYTHING** — don't report success until you see the widget render correctly
-2. **agent_refresh = YOU collect data** — the widget just displays what you POST to cache
-3. **fetch.instructions is the source of truth** — cron jobs just send the slug, you look up instructions
-4. **Always include fetchedAt** — widgets need timestamps for "Updated X ago" display
-5. **data_schema is required** — cache POSTs validate against it, malformed data returns 400
-6. **Don't wrap in Card** — the framework provides the outer card, you render content only
-7. **Use Haiku for refresh subagents** — mechanical data collection doesn't need Opus
-8. **Mark refresh requests as processed** — `DELETE /api/widgets/{slug}/refresh` after handling
-9. **Spawn subagents for refreshes** — don't block main session with PTY/long-running work
+1. **Use JSON Schema for generation** — `docs/schemas/widget-schema.json` enforces all required fields
+2. **Browser verify EVERYTHING** — don't report success until you see the widget render correctly
+3. **agent_refresh = YOU collect data** — the widget just displays what you POST to cache
+4. **fetch.instructions is the source of truth** — cron jobs just send the slug, you look up instructions
+5. **Always include fetchedAt** — widgets need timestamps for "Updated X ago" display
+6. **data_schema is REQUIRED** — cache POSTs validate against it, malformed data returns 400
+7. **credentials is REQUIRED** — use empty array `[]` if no credentials needed
+8. **Don't wrap in Card** — the framework provides the outer card, you render content only
+9. **Use Haiku for refresh subagents** — mechanical data collection doesn't need Opus
+10. **Mark refresh requests as processed** — `DELETE /api/widgets/{slug}/refresh` after handling
+11. **Spawn subagents for refreshes** — don't block main session with PTY/long-running work
 
 ## Environment Variables
 
