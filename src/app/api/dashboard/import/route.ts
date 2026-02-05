@@ -22,6 +22,7 @@ import { generateUniqueSlug } from "@/lib/widget-package";
 import {
   validateDashboardFormat,
   type DashboardExportFormat,
+  type ImportResponse,
 } from "@/lib/dashboard-format";
 
 // Maximum import file size (5MB) to prevent DoS
@@ -33,21 +34,6 @@ interface ImportOptions {
   import_layout: boolean;
   conflict_resolution: "overwrite" | "rename" | "skip";
   clear_existing_layout?: boolean;
-}
-
-interface ImportResponse {
-  success: boolean;
-  imported: {
-    widgets: string[];
-    widgets_skipped: string[];
-    widgets_renamed: Array<{ original: string; renamed: string }>;
-    theme: boolean;
-    layout: boolean;
-    layout_items: number;
-  };
-  credentials_missing: string[];
-  errors: string[];
-  warnings: string[];
 }
 
 /**

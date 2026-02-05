@@ -9,74 +9,15 @@ import { hasCredential, type Provider } from "@/lib/credentials";
 import {
   validateDashboardFormat,
   type DashboardExportFormat,
+  type WidgetPreviewDetail,
+  type CredentialPreviewDetail,
+  type ThemePreviewDetail,
+  type WidgetConflict,
+  type ImportPreviewResponse,
 } from "@/lib/dashboard-format";
 
 // Maximum import file size (5MB) to prevent DoS
 const MAX_IMPORT_SIZE = 5 * 1024 * 1024;
-
-interface WidgetConflict {
-  slug: string;
-  existing_name: string;
-  incoming_name: string;
-  action: "will_overwrite" | "will_rename" | "will_skip";
-}
-
-interface WidgetPreviewDetail {
-  slug: string;
-  name: string;
-  description?: string;
-  has_conflict: boolean;
-  source_code: string;
-  server_code?: string;
-  server_code_enabled: boolean;
-  source_code_lines: number;
-  server_code_lines?: number;
-  credentials: Array<{ id: string; name: string; type: string }>;
-}
-
-interface CredentialPreviewDetail {
-  id: string;
-  type: "api_key" | "local_software" | "oauth" | "agent";
-  name: string;
-  description: string;
-  obtain_url?: string;
-  install_url?: string;
-  is_configured: boolean;
-}
-
-interface ThemePreviewDetail {
-  name: string;
-  lightCss?: string;
-  darkCss?: string;
-  lightCss_lines: number;
-  darkCss_lines: number;
-}
-
-interface ImportPreviewResponse {
-  valid: boolean;
-  errors: string[];
-  warnings: string[];
-  dashboard: {
-    name: string;
-    description?: string;
-    author?: string;
-    exported_at: string;
-    glance_version: string;
-  };
-  widget_count: number;
-  widgets: WidgetPreviewDetail[];
-  conflicts: WidgetConflict[];
-  layout: {
-    desktop_items: number;
-    tablet_items: number;
-    mobile_items: number;
-  };
-  has_theme: boolean;
-  theme_details?: ThemePreviewDetail;
-  credentials_needed: string[];
-  credentials_missing: string[];
-  credentials_details: CredentialPreviewDetail[];
-}
 
 /**
  * POST /api/dashboard/import/preview
