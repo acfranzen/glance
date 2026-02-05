@@ -8,3 +8,5 @@ export { CredentialSetupWizard } from "./CredentialSetupWizard";
 export { SetupWizard } from "./SetupWizard";
 export { WidgetExportModal } from "./WidgetExportModal";
 export { WidgetImportModal } from "./WidgetImportModal";
+export { DashboardExportModal } from "./DashboardExportModal";
+export { DashboardImportModal } from "./DashboardImportModal";

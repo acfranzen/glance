@@ -91,7 +91,8 @@ Other routes:
 
 ## Conventions
 
-- TypeScript strict mode; avoid `any`
+- TypeScript strict mode
+- **NEVER use `any`** — always use proper types, generics, `unknown` with type guards, or `Record<string, unknown>` for dynamic objects
 - Tailwind for styling; support light/dark modes
 
 ## Critical Rules

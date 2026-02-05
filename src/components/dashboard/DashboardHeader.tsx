@@ -5,7 +5,16 @@ import { useWidgetStore } from "@/lib/store/widget-store";
 import { AddWidgetModal } from "./AddWidgetModal";
 import { ThemeImportModal } from "./ThemeImportModal";
 import { WidgetImportModal } from "./WidgetImportModal";
+import { DashboardExportModal } from "./DashboardExportModal";
+import { DashboardImportModal } from "./DashboardImportModal";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Pencil,
   Check,
@@ -16,6 +25,9 @@ import {
   Key,
   Palette,
   Upload,
+  FolderDown,
+  FolderUp,
+  MoreHorizontal,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
@@ -27,6 +39,8 @@ export function DashboardHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [credentialsOpen, setCredentialsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [dashboardExportOpen, setDashboardExportOpen] = useState(false);
+  const [dashboardImportOpen, setDashboardImportOpen] = useState(false);
 
   return (
     <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-40">
@@ -44,15 +58,6 @@ export function DashboardHeader() {
         {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-2">
           <AddWidgetModal />
-
-          <Button
-            variant="outline"
-            onClick={() => setImportOpen(true)}
-            title="Import Widget Package"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Import
-          </Button>
 
           <Button
             variant={isEditing ? "default" : "outline"}
@@ -81,6 +86,30 @@ export function DashboardHeader() {
           </Button>
 
           <ThemeImportModal />
+
+          {/* Import/Export Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" title="Import & Export">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Import Widget
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setDashboardExportOpen(true)}>
+                <FolderDown className="h-4 w-4 mr-2" />
+                Export Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setDashboardImportOpen(true)}>
+                <FolderUp className="h-4 w-4 mr-2" />
+                Import Dashboard
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <Button
             variant="ghost"
@@ -130,18 +159,6 @@ export function DashboardHeader() {
             <AddWidgetModal />
 
             <Button
-              variant="outline"
-              onClick={() => {
-                setImportOpen(true);
-                setMobileMenuOpen(false);
-              }}
-              className="w-full justify-start"
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Import Widget
-            </Button>
-
-            <Button
               variant={isEditing ? "default" : "outline"}
               onClick={() => {
                 setEditing(!isEditing);
@@ -182,6 +199,43 @@ export function DashboardHeader() {
                 </Button>
               }
             />
+
+            <div className="border-t pt-2 mt-2">
+              <p className="text-xs text-muted-foreground mb-2 px-1">Import & Export</p>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setImportOpen(true);
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full justify-start"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Import Widget
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDashboardExportOpen(true);
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full justify-start mt-2"
+              >
+                <FolderDown className="h-4 w-4 mr-2" />
+                Export Dashboard
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDashboardImportOpen(true);
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full justify-start mt-2"
+              >
+                <FolderUp className="h-4 w-4 mr-2" />
+                Import Dashboard
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -194,6 +248,19 @@ export function DashboardHeader() {
       <WidgetImportModal
         open={importOpen}
         onOpenChange={setImportOpen}
+        onImportComplete={() => {
+          refreshWidgets();
+        }}
+      />
+
+      <DashboardExportModal
+        open={dashboardExportOpen}
+        onOpenChange={setDashboardExportOpen}
+      />
+
+      <DashboardImportModal
+        open={dashboardImportOpen}
+        onOpenChange={setDashboardImportOpen}
         onImportComplete={() => {
           refreshWidgets();
         }}
