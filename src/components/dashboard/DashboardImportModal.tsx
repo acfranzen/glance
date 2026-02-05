@@ -24,12 +24,20 @@ import {
   AlertCircle,
   Check,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   FileJson,
   Package,
   AlertTriangle,
   Key,
   Palette,
   LayoutGrid,
+  Code,
+  Server,
+  ExternalLink,
+  Copy,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 
 interface DashboardImportModalProps {
@@ -38,10 +46,35 @@ interface DashboardImportModalProps {
   onImportComplete: () => void;
 }
 
-interface WidgetPreview {
+interface WidgetPreviewDetail {
   slug: string;
   name: string;
+  description?: string;
   has_conflict: boolean;
+  source_code: string;
+  server_code?: string;
+  server_code_enabled: boolean;
+  source_code_lines: number;
+  server_code_lines?: number;
+  credentials: Array<{ id: string; name: string; type: string }>;
+}
+
+interface CredentialPreviewDetail {
+  id: string;
+  type: 'api_key' | 'local_software' | 'oauth' | 'agent';
+  name: string;
+  description: string;
+  obtain_url?: string;
+  install_url?: string;
+  is_configured: boolean;
+}
+
+interface ThemePreviewDetail {
+  name: string;
+  lightCss?: string;
+  darkCss?: string;
+  lightCss_lines: number;
+  darkCss_lines: number;
 }
 
 interface WidgetConflict {
@@ -63,7 +96,7 @@ interface ImportPreviewResponse {
     glance_version: string;
   };
   widget_count: number;
-  widgets: WidgetPreview[];
+  widgets: WidgetPreviewDetail[];
   conflicts: WidgetConflict[];
   layout: {
     desktop_items: number;
@@ -71,8 +104,10 @@ interface ImportPreviewResponse {
     mobile_items: number;
   };
   has_theme: boolean;
+  theme_details?: ThemePreviewDetail;
   credentials_needed: string[];
   credentials_missing: string[];
+  credentials_details: CredentialPreviewDetail[];
 }
 
 interface ImportResponse {
@@ -109,7 +144,60 @@ export function DashboardImportModal({
   const [importLayout, setImportLayout] = useState(true);
   const [importTheme, setImportTheme] = useState(true);
   const [clearExistingLayout, setClearExistingLayout] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [expandedWidgets, setExpandedWidgets] = useState<Set<string>>(new Set());
+  const [expandedWidgetCode, setExpandedWidgetCode] = useState<Record<string, 'source' | 'server' | null>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const toggleSection = (section: string) => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(section)) {
+        next.delete(section);
+      } else {
+        next.add(section);
+      }
+      return next;
+    });
+  };
+
+  const toggleWidget = (slug: string) => {
+    setExpandedWidgets((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) {
+        next.delete(slug);
+      } else {
+        next.add(slug);
+      }
+      return next;
+    });
+  };
+
+  const toggleWidgetCode = (slug: string, codeType: 'source' | 'server') => {
+    setExpandedWidgetCode((prev) => ({
+      ...prev,
+      [slug]: prev[slug] === codeType ? null : codeType,
+    }));
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  const getCredentialTypeBadge = (type: string) => {
+    switch (type) {
+      case 'api_key':
+        return <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-600">API Key</span>;
+      case 'local_software':
+        return <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-600">Local Software</span>;
+      case 'oauth':
+        return <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/20 text-green-600">OAuth</span>;
+      case 'agent':
+        return <span className="px-1.5 py-0.5 rounded text-[10px] bg-orange-500/20 text-orange-600">Agent</span>;
+      default:
+        return null;
+    }
+  };
 
   const handleClose = () => {
     setStep('upload');
@@ -122,6 +210,9 @@ export function DashboardImportModal({
     setImportLayout(true);
     setImportTheme(true);
     setClearExistingLayout(false);
+    setExpandedSections(new Set());
+    setExpandedWidgets(new Set());
+    setExpandedWidgetCode({});
     onOpenChange(false);
   };
 
@@ -357,6 +448,295 @@ export function DashboardImportModal({
               </div>
             </div>
 
+            {/* Widget Details Section */}
+            {preview.widgets.length > 0 && (
+              <div className="border rounded-lg overflow-hidden">
+                <button
+                  onClick={() => toggleSection('widgets')}
+                  className="w-full px-4 py-3 flex items-center justify-between bg-muted/30 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Code className="h-4 w-4" />
+                    Widget Details
+                    <span className="text-xs text-muted-foreground">({preview.widgets.length})</span>
+                  </div>
+                  {expandedSections.has('widgets') ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </button>
+                {expandedSections.has('widgets') && (
+                  <div className="divide-y">
+                    {preview.widgets.map((widget) => (
+                      <div key={widget.slug} className="px-4 py-3">
+                        <button
+                          onClick={() => toggleWidget(widget.slug)}
+                          className="w-full flex items-center justify-between text-left"
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">{widget.name}</span>
+                              {widget.has_conflict && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-yellow-500/20 text-yellow-600">
+                                  Conflict
+                                </span>
+                              )}
+                              {widget.server_code_enabled && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-600">
+                                  Server Code
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                              <code className="bg-muted px-1.5 rounded">{widget.slug}</code>
+                              <span>{widget.source_code_lines} lines</span>
+                              {widget.server_code_lines && (
+                                <span>+{widget.server_code_lines} server</span>
+                              )}
+                            </div>
+                          </div>
+                          {expandedWidgets.has(widget.slug) ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </button>
+
+                        {expandedWidgets.has(widget.slug) && (
+                          <div className="mt-3 space-y-3">
+                            {widget.description && (
+                              <p className="text-sm text-muted-foreground">{widget.description}</p>
+                            )}
+
+                            {/* Credentials for this widget */}
+                            {widget.credentials.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {widget.credentials.map((cred) => (
+                                  <span
+                                    key={cred.id}
+                                    className="px-2 py-0.5 rounded text-xs bg-blue-500/10 text-blue-600 flex items-center gap-1"
+                                  >
+                                    <Key className="h-3 w-3" />
+                                    {cred.name}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Code view buttons */}
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => toggleWidgetCode(widget.slug, 'source')}
+                                className="text-xs h-7"
+                              >
+                                <Code className="h-3 w-3 mr-1" />
+                                {expandedWidgetCode[widget.slug] === 'source' ? 'Hide' : 'View'} Source
+                              </Button>
+                              {widget.server_code && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => toggleWidgetCode(widget.slug, 'server')}
+                                  className="text-xs h-7"
+                                >
+                                  <Server className="h-3 w-3 mr-1" />
+                                  {expandedWidgetCode[widget.slug] === 'server' ? 'Hide' : 'View'} Server
+                                </Button>
+                              )}
+                            </div>
+
+                            {/* Source code preview */}
+                            {expandedWidgetCode[widget.slug] === 'source' && (
+                              <div className="relative">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => copyToClipboard(widget.source_code)}
+                                  className="absolute top-2 right-2 h-7 text-xs"
+                                >
+                                  <Copy className="h-3 w-3 mr-1" />
+                                  Copy
+                                </Button>
+                                <pre className="bg-muted p-3 rounded-lg text-xs max-h-64 overflow-auto font-mono">
+                                  <code>{widget.source_code}</code>
+                                </pre>
+                              </div>
+                            )}
+
+                            {/* Server code preview */}
+                            {expandedWidgetCode[widget.slug] === 'server' && widget.server_code && (
+                              <div className="relative">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => copyToClipboard(widget.server_code!)}
+                                  className="absolute top-2 right-2 h-7 text-xs"
+                                >
+                                  <Copy className="h-3 w-3 mr-1" />
+                                  Copy
+                                </Button>
+                                <pre className="bg-muted p-3 rounded-lg text-xs max-h-64 overflow-auto font-mono">
+                                  <code>{widget.server_code}</code>
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Credentials Section */}
+            {preview.credentials_details.length > 0 && (
+              <div className="border rounded-lg overflow-hidden">
+                <button
+                  onClick={() => toggleSection('credentials')}
+                  className="w-full px-4 py-3 flex items-center justify-between bg-muted/30 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Key className="h-4 w-4" />
+                    Credentials
+                    <span className="text-xs text-muted-foreground">({preview.credentials_details.length})</span>
+                    {preview.credentials_missing.length > 0 && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-600">
+                        {preview.credentials_missing.length} missing
+                      </span>
+                    )}
+                  </div>
+                  {expandedSections.has('credentials') ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </button>
+                {expandedSections.has('credentials') && (
+                  <div className="p-4 space-y-3">
+                    {preview.credentials_details.map((cred) => (
+                      <div
+                        key={cred.id}
+                        className={`rounded-lg p-3 ${
+                          cred.is_configured ? 'bg-green-500/5 border border-green-500/20' : 'bg-amber-500/5 border border-amber-500/20'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">{cred.name}</span>
+                              {getCredentialTypeBadge(cred.type)}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">{cred.description}</p>
+                          </div>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                              cred.is_configured
+                                ? 'bg-green-500/20 text-green-600'
+                                : 'bg-amber-500/20 text-amber-600'
+                            }`}
+                          >
+                            {cred.is_configured ? (
+                              <>
+                                <CheckCircle className="h-3 w-3" />
+                                Configured
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="h-3 w-3" />
+                                Missing
+                              </>
+                            )}
+                          </span>
+                        </div>
+                        {cred.obtain_url && !cred.is_configured && (
+                          <a
+                            href={cred.obtain_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 mt-2 text-xs text-primary hover:underline"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Get API Key
+                          </a>
+                        )}
+                        {cred.install_url && !cred.is_configured && (
+                          <a
+                            href={cred.install_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 mt-2 ml-3 text-xs text-primary hover:underline"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Install Guide
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Theme Preview Section */}
+            {preview.theme_details && (
+              <div className="border rounded-lg overflow-hidden">
+                <button
+                  onClick={() => toggleSection('theme')}
+                  className="w-full px-4 py-3 flex items-center justify-between bg-muted/30 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Palette className="h-4 w-4" />
+                    Theme: {preview.theme_details.name}
+                  </div>
+                  {expandedSections.has('theme') ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </button>
+                {expandedSections.has('theme') && (
+                  <div className="p-4 space-y-4">
+                    {preview.theme_details.lightCss && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">Light Theme</span>
+                          <span className="text-xs text-muted-foreground">
+                            {preview.theme_details.lightCss_lines} lines
+                          </span>
+                        </div>
+                        <pre className="bg-muted p-3 rounded-lg text-xs max-h-40 overflow-auto font-mono">
+                          <code>
+                            {preview.theme_details.lightCss.split('\n').slice(0, 10).join('\n')}
+                            {preview.theme_details.lightCss_lines > 10 && '\n...'}
+                          </code>
+                        </pre>
+                      </div>
+                    )}
+                    {preview.theme_details.darkCss && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">Dark Theme</span>
+                          <span className="text-xs text-muted-foreground">
+                            {preview.theme_details.darkCss_lines} lines
+                          </span>
+                        </div>
+                        <pre className="bg-muted p-3 rounded-lg text-xs max-h-40 overflow-auto font-mono">
+                          <code>
+                            {preview.theme_details.darkCss.split('\n').slice(0, 10).join('\n')}
+                            {preview.theme_details.darkCss_lines > 10 && '\n...'}
+                          </code>
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Warnings */}
             {preview.warnings.length > 0 && (
               <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
@@ -372,8 +752,8 @@ export function DashboardImportModal({
               </div>
             )}
 
-            {/* Missing Credentials */}
-            {preview.credentials_missing.length > 0 && (
+            {/* Missing Credentials Warning (only if no detailed credentials info) */}
+            {preview.credentials_missing.length > 0 && preview.credentials_details.length === 0 && (
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-blue-600 mb-2">
                   <Key className="w-4 h-4" />

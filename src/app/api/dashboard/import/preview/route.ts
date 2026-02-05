@@ -21,6 +21,37 @@ interface WidgetConflict {
   action: "will_overwrite" | "will_rename" | "will_skip";
 }
 
+interface WidgetPreviewDetail {
+  slug: string;
+  name: string;
+  description?: string;
+  has_conflict: boolean;
+  source_code: string;
+  server_code?: string;
+  server_code_enabled: boolean;
+  source_code_lines: number;
+  server_code_lines?: number;
+  credentials: Array<{ id: string; name: string; type: string }>;
+}
+
+interface CredentialPreviewDetail {
+  id: string;
+  type: "api_key" | "local_software" | "oauth" | "agent";
+  name: string;
+  description: string;
+  obtain_url?: string;
+  install_url?: string;
+  is_configured: boolean;
+}
+
+interface ThemePreviewDetail {
+  name: string;
+  lightCss?: string;
+  darkCss?: string;
+  lightCss_lines: number;
+  darkCss_lines: number;
+}
+
 interface ImportPreviewResponse {
   valid: boolean;
   errors: string[];
@@ -33,11 +64,7 @@ interface ImportPreviewResponse {
     glance_version: string;
   };
   widget_count: number;
-  widgets: Array<{
-    slug: string;
-    name: string;
-    has_conflict: boolean;
-  }>;
+  widgets: WidgetPreviewDetail[];
   conflicts: WidgetConflict[];
   layout: {
     desktop_items: number;
@@ -45,8 +72,10 @@ interface ImportPreviewResponse {
     mobile_items: number;
   };
   has_theme: boolean;
+  theme_details?: ThemePreviewDetail;
   credentials_needed: string[];
   credentials_missing: string[];
+  credentials_details: CredentialPreviewDetail[];
 }
 
 /**
@@ -78,6 +107,7 @@ export async function POST(request: NextRequest) {
         has_theme: false,
         credentials_needed: [],
         credentials_missing: [],
+        credentials_details: [],
       } satisfies ImportPreviewResponse,
       { status: 413 }
     );
@@ -116,6 +146,7 @@ export async function POST(request: NextRequest) {
         has_theme: false,
         credentials_needed: [],
         credentials_missing: [],
+        credentials_details: [],
       };
       return NextResponse.json(response, { status: 400 });
     }
@@ -127,21 +158,39 @@ export async function POST(request: NextRequest) {
     const existingWidgets = getAllCustomWidgets(true);
     const existingSlugs = new Map(existingWidgets.map((w) => [w.slug, w.name]));
 
-    // Check for conflicts
+    // Helper to count lines
+    const countLines = (str?: string): number => {
+      if (!str) return 0;
+      return str.split("\n").length;
+    };
+
+    // Check for conflicts and build detailed widget previews
     const conflicts: WidgetConflict[] = [];
-    const widgetPreviews: Array<{
-      slug: string;
-      name: string;
-      has_conflict: boolean;
-    }> = [];
+    const widgetPreviews: WidgetPreviewDetail[] = [];
 
     for (const widget of dashboard.widgets) {
       const hasConflict = existingSlugs.has(widget.slug);
 
+      // Extract credential info for this widget
+      const widgetCredentials = (widget.credentials || []).map((cred) => ({
+        id: cred.id,
+        name: cred.name,
+        type: cred.type,
+      }));
+
       widgetPreviews.push({
         slug: widget.slug,
         name: widget.name,
+        description: widget.description,
         has_conflict: hasConflict,
+        source_code: widget.source_code,
+        server_code: widget.server_code,
+        server_code_enabled: widget.server_code_enabled,
+        source_code_lines: countLines(widget.source_code),
+        server_code_lines: widget.server_code
+          ? countLines(widget.server_code)
+          : undefined,
+        credentials: widgetCredentials,
       });
 
       if (hasConflict) {
@@ -154,9 +203,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check credentials
+    // Check credentials and build detailed credential info
     const credentialsNeeded: string[] = [];
     const credentialsMissing: string[] = [];
+    const credentialsDetails: CredentialPreviewDetail[] = [];
+    const seenCredentialIds = new Set<string>();
 
     if (dashboard.credentials_needed) {
       for (const cred of dashboard.credentials_needed) {
@@ -170,7 +221,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Also scan widget credentials
+    // Also scan widget credentials and build detailed list
     for (const widget of dashboard.widgets) {
       if (widget.credentials && Array.isArray(widget.credentials)) {
         for (const cred of widget.credentials) {
@@ -182,6 +233,38 @@ export async function POST(request: NextRequest) {
               credentialsMissing.push(credId);
             }
           }
+
+          // Add to detailed list if not seen
+          if (credId && !seenCredentialIds.has(credId)) {
+            seenCredentialIds.add(credId);
+            const isConfigured = hasCredential(credId as Provider);
+            credentialsDetails.push({
+              id: credId,
+              type: cred.type,
+              name: cred.name,
+              description: cred.description,
+              obtain_url: cred.obtain_url,
+              install_url: cred.install_url,
+              is_configured: isConfigured,
+            });
+          }
+        }
+      }
+    }
+
+    // Also add credentials from credentials_needed that weren't in widgets
+    if (dashboard.credentials_needed) {
+      for (const cred of dashboard.credentials_needed) {
+        if (!seenCredentialIds.has(cred.provider)) {
+          seenCredentialIds.add(cred.provider);
+          const isConfigured = hasCredential(cred.provider as Provider);
+          credentialsDetails.push({
+            id: cred.provider,
+            type: "api_key", // Default type for credentials_needed entries
+            name: cred.provider,
+            description: cred.description,
+            is_configured: isConfigured,
+          });
         }
       }
     }
@@ -197,6 +280,17 @@ export async function POST(request: NextRequest) {
     const hasTheme =
       !!dashboard.theme &&
       (!!dashboard.theme.lightCss || !!dashboard.theme.darkCss);
+
+    // Build theme details
+    const themeDetails: ThemePreviewDetail | undefined = hasTheme
+      ? {
+          name: dashboard.theme!.name,
+          lightCss: dashboard.theme!.lightCss,
+          darkCss: dashboard.theme!.darkCss,
+          lightCss_lines: countLines(dashboard.theme!.lightCss),
+          darkCss_lines: countLines(dashboard.theme!.darkCss),
+        }
+      : undefined;
 
     // Warnings
     if (conflicts.length > 0) {
@@ -229,8 +323,10 @@ export async function POST(request: NextRequest) {
       conflicts,
       layout,
       has_theme: hasTheme,
+      theme_details: themeDetails,
       credentials_needed: credentialsNeeded,
       credentials_missing: credentialsMissing,
+      credentials_details: credentialsDetails,
     };
 
     return NextResponse.json(response);
@@ -257,6 +353,7 @@ export async function POST(request: NextRequest) {
         has_theme: false,
         credentials_needed: [],
         credentials_missing: [],
+        credentials_details: [],
       } satisfies ImportPreviewResponse,
       { status: 400 }
     );
