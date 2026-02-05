@@ -4,48 +4,15 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 import { validateAuthOrInternal } from "@/lib/auth";
-import { getAllCustomWidgets, type CredentialRequirement } from "@/lib/db";
+import { getAllCustomWidgets } from "@/lib/db";
 import { hasCredential, type Provider } from "@/lib/credentials";
+import {
+  validateDashboardFormat,
+  type DashboardExportFormat,
+} from "@/lib/dashboard-format";
 
-interface DashboardExportFormat {
-  version: 1;
-  name: string;
-  description?: string;
-  author?: string;
-  exported_at: string;
-  glance_version: string;
-  widgets: Array<{
-    slug: string;
-    name: string;
-    description?: string;
-    source_code: string;
-    server_code?: string;
-    server_code_enabled: boolean;
-    default_size: { w: number; h: number };
-    min_size: { w: number; h: number };
-    refresh_interval: number;
-    fetch: unknown;
-    credentials?: CredentialRequirement[];
-    setup?: unknown;
-    cache?: unknown;
-    data_schema?: unknown;
-  }>;
-  layout: {
-    desktop: Array<{ widget: string; x: number; y: number; w: number; h: number }>;
-    tablet?: Array<{ widget: string; x: number; y: number; w: number; h: number }>;
-    mobile?: Array<{ widget: string; x: number; y: number; w: number; h: number }>;
-  };
-  theme?: {
-    name: string;
-    lightCss?: string;
-    darkCss?: string;
-  };
-  credentials_needed: Array<{
-    provider: string;
-    description: string;
-    required: boolean;
-  }>;
-}
+// Maximum import file size (5MB) to prevent DoS
+const MAX_IMPORT_SIZE = 5 * 1024 * 1024;
 
 interface WidgetConflict {
   slug: string;
@@ -82,53 +49,6 @@ interface ImportPreviewResponse {
   credentials_missing: string[];
 }
 
-function validateDashboardFormat(data: unknown): { valid: boolean; errors: string[] } {
-  const errors: string[] = [];
-  
-  if (!data || typeof data !== "object") {
-    return { valid: false, errors: ["Invalid JSON structure"] };
-  }
-  
-  const dashboard = data as Record<string, unknown>;
-  
-  if (dashboard.version !== 1) {
-    errors.push(`Unsupported version: ${dashboard.version}. Expected version 1.`);
-  }
-  
-  if (!dashboard.name || typeof dashboard.name !== "string") {
-    errors.push("Missing or invalid dashboard name");
-  }
-  
-  if (!Array.isArray(dashboard.widgets)) {
-    errors.push("Missing or invalid widgets array");
-  } else {
-    const widgets = dashboard.widgets as Array<Record<string, unknown>>;
-    for (let i = 0; i < widgets.length; i++) {
-      const widget = widgets[i];
-      if (!widget.slug || typeof widget.slug !== "string") {
-        errors.push(`Widget ${i + 1}: missing or invalid slug`);
-      }
-      if (!widget.name || typeof widget.name !== "string") {
-        errors.push(`Widget ${i + 1}: missing or invalid name`);
-      }
-      if (!widget.source_code || typeof widget.source_code !== "string") {
-        errors.push(`Widget ${widget.slug || i + 1}: missing or invalid source_code`);
-      }
-    }
-  }
-  
-  if (!dashboard.layout || typeof dashboard.layout !== "object") {
-    errors.push("Missing or invalid layout object");
-  } else {
-    const layout = dashboard.layout as Record<string, unknown>;
-    if (!Array.isArray(layout.desktop)) {
-      errors.push("Missing or invalid layout.desktop array");
-    }
-  }
-  
-  return { valid: errors.length === 0, errors };
-}
-
 /**
  * POST /api/dashboard/import/preview
  *
@@ -142,22 +62,52 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: auth.error }, { status: 401 });
   }
 
+  // Check content length to prevent oversized uploads
+  const contentLength = request.headers.get("content-length");
+  if (contentLength && parseInt(contentLength, 10) > MAX_IMPORT_SIZE) {
+    return NextResponse.json(
+      {
+        valid: false,
+        errors: [`File too large. Maximum size is ${MAX_IMPORT_SIZE / 1024 / 1024}MB`],
+        warnings: [],
+        dashboard: { name: "Unknown", exported_at: "Unknown", glance_version: "Unknown" },
+        widget_count: 0,
+        widgets: [],
+        conflicts: [],
+        layout: { desktop_items: 0, tablet_items: 0, mobile_items: 0 },
+        has_theme: false,
+        credentials_needed: [],
+        credentials_missing: [],
+      } satisfies ImportPreviewResponse,
+      { status: 413 }
+    );
+  }
+
   try {
     const body = await request.json();
-    
+
     // Validate structure
     const validation = validateDashboardFormat(body);
     if (!validation.valid) {
       // Extract safe fields from unknown body for error response
-      const bodyObj = (body && typeof body === "object") ? body as Record<string, unknown> : {};
+      const bodyObj =
+        body && typeof body === "object"
+          ? (body as Record<string, unknown>)
+          : {};
       const response: ImportPreviewResponse = {
         valid: false,
         errors: validation.errors,
         warnings: [],
         dashboard: {
           name: typeof bodyObj.name === "string" ? bodyObj.name : "Unknown",
-          exported_at: typeof bodyObj.exported_at === "string" ? bodyObj.exported_at : "Unknown",
-          glance_version: typeof bodyObj.glance_version === "string" ? bodyObj.glance_version : "Unknown",
+          exported_at:
+            typeof bodyObj.exported_at === "string"
+              ? bodyObj.exported_at
+              : "Unknown",
+          glance_version:
+            typeof bodyObj.glance_version === "string"
+              ? bodyObj.glance_version
+              : "Unknown",
         },
         widget_count: 0,
         widgets: [],
@@ -169,27 +119,31 @@ export async function POST(request: NextRequest) {
       };
       return NextResponse.json(response, { status: 400 });
     }
-    
+
     const dashboard = body as DashboardExportFormat;
     const warnings: string[] = [];
-    
+
     // Get existing widgets for conflict detection
     const existingWidgets = getAllCustomWidgets(true);
-    const existingSlugs = new Map(existingWidgets.map(w => [w.slug, w.name]));
-    
+    const existingSlugs = new Map(existingWidgets.map((w) => [w.slug, w.name]));
+
     // Check for conflicts
     const conflicts: WidgetConflict[] = [];
-    const widgetPreviews: Array<{ slug: string; name: string; has_conflict: boolean }> = [];
-    
+    const widgetPreviews: Array<{
+      slug: string;
+      name: string;
+      has_conflict: boolean;
+    }> = [];
+
     for (const widget of dashboard.widgets) {
       const hasConflict = existingSlugs.has(widget.slug);
-      
+
       widgetPreviews.push({
         slug: widget.slug,
         name: widget.name,
         has_conflict: hasConflict,
       });
-      
+
       if (hasConflict) {
         conflicts.push({
           slug: widget.slug,
@@ -199,15 +153,15 @@ export async function POST(request: NextRequest) {
         });
       }
     }
-    
+
     // Check credentials
     const credentialsNeeded: string[] = [];
     const credentialsMissing: string[] = [];
-    
+
     if (dashboard.credentials_needed) {
       for (const cred of dashboard.credentials_needed) {
         credentialsNeeded.push(cred.provider);
-        
+
         // Check if credential is configured
         const isConfigured = hasCredential(cred.provider as Provider);
         if (!isConfigured) {
@@ -215,7 +169,7 @@ export async function POST(request: NextRequest) {
         }
       }
     }
-    
+
     // Also scan widget credentials
     for (const widget of dashboard.widgets) {
       if (widget.credentials && Array.isArray(widget.credentials)) {
@@ -231,28 +185,34 @@ export async function POST(request: NextRequest) {
         }
       }
     }
-    
+
     // Layout info
     const layout = {
       desktop_items: dashboard.layout.desktop?.length || 0,
       tablet_items: dashboard.layout.tablet?.length || 0,
       mobile_items: dashboard.layout.mobile?.length || 0,
     };
-    
+
     // Theme info
-    const hasTheme = !!dashboard.theme && (!!dashboard.theme.lightCss || !!dashboard.theme.darkCss);
-    
+    const hasTheme =
+      !!dashboard.theme &&
+      (!!dashboard.theme.lightCss || !!dashboard.theme.darkCss);
+
     // Warnings
     if (conflicts.length > 0) {
-      warnings.push(`${conflicts.length} widget(s) already exist and will be affected`);
+      warnings.push(
+        `${conflicts.length} widget(s) already exist and will be affected`
+      );
     }
     if (credentialsMissing.length > 0) {
-      warnings.push(`${credentialsMissing.length} credential(s) need to be configured`);
+      warnings.push(
+        `${credentialsMissing.length} credential(s) need to be configured`
+      );
     }
     if (!hasTheme && dashboard.theme?.name) {
       warnings.push("Theme has name but no CSS content");
     }
-    
+
     const response: ImportPreviewResponse = {
       valid: true,
       errors: [],
@@ -272,16 +232,24 @@ export async function POST(request: NextRequest) {
       credentials_needed: credentialsNeeded,
       credentials_missing: credentialsMissing,
     };
-    
+
     return NextResponse.json(response);
   } catch (error) {
     console.error("Failed to preview dashboard import:", error);
     return NextResponse.json(
       {
         valid: false,
-        errors: [error instanceof Error ? error.message : "Failed to parse dashboard file"],
+        errors: [
+          error instanceof Error
+            ? error.message
+            : "Failed to parse dashboard file",
+        ],
         warnings: [],
-        dashboard: { name: "Unknown", exported_at: "Unknown", glance_version: "Unknown" },
+        dashboard: {
+          name: "Unknown",
+          exported_at: "Unknown",
+          glance_version: "Unknown",
+        },
         widget_count: 0,
         widgets: [],
         conflicts: [],

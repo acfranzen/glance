@@ -10,45 +10,16 @@ import {
   getCustomWidget,
   getSetting,
 } from "@/lib/db";
+import type { DashboardExportFormat } from "@/lib/dashboard-format";
 
-interface DashboardExportFormat {
-  version: 1;
-  name: string;
+interface ExportRequestBody {
+  widgets?: string[];
+  include_theme?: boolean;
+  include_layout?: boolean;
+  breakpoints?: Array<"desktop" | "tablet" | "mobile">;
+  name?: string;
   description?: string;
   author?: string;
-  exported_at: string;
-  glance_version: string;
-  widgets: Array<{
-    slug: string;
-    name: string;
-    description?: string;
-    source_code: string;
-    server_code?: string;
-    server_code_enabled: boolean;
-    default_size: { w: number; h: number };
-    min_size: { w: number; h: number };
-    refresh_interval: number;
-    fetch: unknown;
-    credentials?: unknown[];
-    setup?: unknown;
-    cache?: unknown;
-    data_schema?: unknown;
-  }>;
-  layout: {
-    desktop: Array<{ widget: string; x: number; y: number; w: number; h: number }>;
-    tablet?: Array<{ widget: string; x: number; y: number; w: number; h: number }>;
-    mobile?: Array<{ widget: string; x: number; y: number; w: number; h: number }>;
-  };
-  theme?: {
-    name: string;
-    lightCss?: string;
-    darkCss?: string;
-  };
-  credentials_needed: Array<{
-    provider: string;
-    description: string;
-    required: boolean;
-  }>;
 }
 
 /**
@@ -69,7 +40,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
+    const body: ExportRequestBody = await request.json();
     const {
       widgets: widgetFilter = ["all"],
       include_theme = true,
@@ -82,31 +53,29 @@ export async function POST(request: NextRequest) {
 
     // Get all widget instances
     const allWidgetInstances = getAllWidgets();
-    
+
     // Get all custom widgets
     const allCustomWidgets = getAllCustomWidgets();
-    
+
     // Filter custom widgets based on what's actually on the dashboard
     const customWidgetIdsOnDashboard = new Set(
-      allWidgetInstances
-        .map(w => w.custom_widget_id)
-        .filter(Boolean)
+      allWidgetInstances.map((w) => w.custom_widget_id).filter(Boolean)
     );
-    
+
     // Determine which widgets to export
-    let widgetsToExport = allCustomWidgets.filter(w => 
+    let widgetsToExport = allCustomWidgets.filter((w) =>
       customWidgetIdsOnDashboard.has(w.id)
     );
-    
+
     if (widgetFilter[0] !== "all") {
       // Filter by specified slugs
-      widgetsToExport = widgetsToExport.filter(w =>
+      widgetsToExport = widgetsToExport.filter((w) =>
         widgetFilter.includes(w.slug)
       );
     }
 
     // Build widgets array
-    const exportWidgets = widgetsToExport.map(widget => ({
+    const exportWidgets = widgetsToExport.map((widget) => ({
       slug: widget.slug,
       name: widget.name,
       description: widget.description || undefined,
@@ -131,17 +100,26 @@ export async function POST(request: NextRequest) {
     };
 
     if (include_layout) {
-      const exportedSlugs = new Set(widgetsToExport.map(w => w.slug));
-      
+      const exportedSlugs = new Set(widgetsToExport.map((w) => w.slug));
+
       // Build desktop layout from widget positions
       for (const instance of allWidgetInstances) {
         const customWidgetId = instance.custom_widget_id;
         if (!customWidgetId) continue;
-        
+
         const customWidget = getCustomWidget(customWidgetId);
         if (!customWidget || !exportedSlugs.has(customWidget.slug)) continue;
-        
-        const position = JSON.parse(instance.position);
+
+        // Safely parse position with fallback
+        let position: { x: number; y: number; w: number; h: number };
+        try {
+          position = JSON.parse(instance.position);
+        } catch {
+          // Skip widgets with malformed position data
+          console.warn(`Skipping widget with invalid position: ${instance.id}`);
+          continue;
+        }
+
         const layoutItem = {
           widget: customWidget.slug,
           x: position.x,
@@ -149,7 +127,7 @@ export async function POST(request: NextRequest) {
           w: position.w,
           h: position.h,
         };
-        
+
         layout.desktop.push(layoutItem);
       }
 
@@ -161,7 +139,7 @@ export async function POST(request: NextRequest) {
       if (breakpoints.includes("mobile")) {
         layout.mobile = [...layout.desktop];
       }
-      
+
       // Remove empty breakpoints
       if (!breakpoints.includes("tablet")) {
         delete layout.tablet;
@@ -186,8 +164,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Collect all unique credentials needed
-    const credentialsNeeded = new Map<string, { description: string; required: boolean }>();
-    
+    const credentialsNeeded = new Map<
+      string,
+      { description: string; required: boolean }
+    >();
+
     for (const widget of widgetsToExport) {
       if (widget.credentials && Array.isArray(widget.credentials)) {
         for (const cred of widget.credentials) {
@@ -213,16 +194,18 @@ export async function POST(request: NextRequest) {
       widgets: exportWidgets,
       layout,
       theme,
-      credentials_needed: Array.from(credentialsNeeded.entries()).map(([provider, info]) => ({
-        provider,
-        description: info.description,
-        required: info.required,
-      })),
+      credentials_needed: Array.from(credentialsNeeded.entries()).map(
+        ([provider, info]) => ({
+          provider,
+          description: info.description,
+          required: info.required,
+        })
+      ),
     };
 
     // Return as downloadable file
     const filename = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.glance.json`;
-    
+
     return new NextResponse(JSON.stringify(exportData, null, 2), {
       status: 200,
       headers: {
