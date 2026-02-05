@@ -11,7 +11,121 @@ metadata:
     primaryEnv: GLANCE_URL
 ---
 
-# Glance Widget Skill
+# Glance
+
+AI-extensible personal dashboard. Create custom widgets with natural language — the AI handles data collection.
+
+## Features
+
+- **Custom Widgets** — Create widgets via AI with auto-generated JSX
+- **Agent Refresh** — AI collects data on schedule and pushes to cache
+- **Dashboard Export/Import** — Share widget configurations
+- **Credential Management** — Secure API key storage
+- **Real-time Updates** — Webhook-triggered instant refreshes
+
+## Quick Start
+
+```bash
+# Navigate to skill directory (if installed via ClawHub)
+cd "$(clawhub list | grep glance | awk '{print $2}')"
+
+# Or clone directly
+git clone https://github.com/acfranzen/glance ~/.glance
+cd ~/.glance
+
+# Install dependencies
+npm install
+
+# Configure environment
+cp .env.example .env.local
+# Edit .env.local with your settings
+
+# Start development server
+npm run dev
+
+# Or build and start production
+npm run build && npm start
+```
+
+Dashboard runs at **http://localhost:3333**
+
+## Configuration
+
+Edit `.env.local`:
+
+```bash
+# Server
+PORT=3333
+AUTH_TOKEN=your-secret-token        # Optional: Bearer token auth
+
+# OpenClaw Integration (for instant widget refresh)
+OPENCLAW_GATEWAY_URL=https://localhost:18789
+OPENCLAW_TOKEN=your-gateway-token
+
+# Database
+DATABASE_PATH=./data/glance.db      # SQLite database location
+```
+
+## Service Installation (macOS)
+
+```bash
+# Create launchd plist
+cat > ~/Library/LaunchAgents/com.glance.dashboard.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.glance.dashboard</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/npm</string>
+        <string>run</string>
+        <string>dev</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>~/.glance</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>~/.glance/logs/stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>~/.glance/logs/stderr.log</string>
+</dict>
+</plist>
+EOF
+
+# Load service
+mkdir -p ~/.glance/logs
+launchctl load ~/Library/LaunchAgents/com.glance.dashboard.plist
+
+# Service commands
+launchctl start com.glance.dashboard
+launchctl stop com.glance.dashboard
+launchctl unload ~/Library/LaunchAgents/com.glance.dashboard.plist
+```
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Server port | `3333` |
+| `AUTH_TOKEN` | Bearer token for API auth | — |
+| `DATABASE_PATH` | SQLite database path | `./data/glance.db` |
+| `OPENCLAW_GATEWAY_URL` | OpenClaw gateway for webhooks | — |
+| `OPENCLAW_TOKEN` | OpenClaw auth token | — |
+
+## Requirements
+
+- Node.js 20+
+- npm or pnpm
+- SQLite (bundled)
+
+---
+
+# Widget Skill
 
 Create and manage dashboard widgets. Most widgets use `agent_refresh` — **you** collect the data.
 
