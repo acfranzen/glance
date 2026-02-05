@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import { exec } from "child_process";
 import { promisify } from "util";
+import https from "https";
 
 // Prevent static generation - this route requires runtime database access
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ import {
   getAllCustomWidgets,
   getWidgetSetup,
   createWidget,
+  getDatabase,
   CredentialRequirement,
 } from "@/lib/db";
 import {
@@ -25,6 +27,108 @@ import { validateServerCode } from "@/lib/widget-sdk/server-executor";
 import { hasCredential, type Provider } from "@/lib/credentials";
 
 const execAsync = promisify(exec);
+
+/**
+ * Trigger an initial refresh for agent_refresh widgets
+ * This queues a refresh request and notifies OpenClaw if webhook is configured
+ */
+async function triggerInitialRefresh(slug: string): Promise<{ queued: boolean; webhookSent: boolean }> {
+  const db = getDatabase();
+  
+  // Ensure refresh_requests table exists
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS widget_refresh_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      widget_slug TEXT NOT NULL,
+      requested_at TEXT NOT NULL,
+      processed_at TEXT,
+      UNIQUE(widget_slug, requested_at)
+    )
+  `);
+
+  // Queue the refresh request
+  const now = new Date().toISOString();
+  try {
+    db.prepare(`
+      INSERT INTO widget_refresh_requests (widget_slug, requested_at)
+      VALUES (?, ?)
+    `).run(slug, now);
+  } catch {
+    // Ignore duplicate key errors
+  }
+
+  // Try to wake the OpenClaw agent if webhook is configured
+  const webhookUrl = process.env.OPENCLAW_WEBHOOK_URL;
+  const webhookToken = process.env.OPENCLAW_WEBHOOK_TOKEN;
+  let webhookSent = false;
+
+  if (webhookUrl && webhookToken) {
+    try {
+      const refreshInstructions = [
+        `⚡ WIDGET REFRESH: ${slug}`,
+        '',
+        '(Auto-triggered after import)',
+        '',
+        'BEFORE spawning a subagent, you MUST read the widget config:',
+        `  curl -s -H "Origin: http://localhost:3333" "http://localhost:3333/api/widgets/${slug}" | jq .fetch`,
+        '',
+        'The fetch.instructions field contains the EXACT commands to run.',
+      ].join('\n');
+
+      const payload = JSON.stringify({
+        tool: 'cron',
+        args: {
+          action: 'wake',
+          text: refreshInstructions,
+          mode: 'now'
+        }
+      });
+
+      const url = new URL(webhookUrl);
+      const isHttps = url.protocol === 'https:';
+      const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+
+      const options: https.RequestOptions = {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${webhookToken}`,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload)
+        },
+        timeout: 5000
+      };
+
+      if (isHttps && isLocalhost) {
+        options.rejectUnauthorized = false;
+      }
+
+      const httpModule = isHttps ? https : (await import('http')).default;
+
+      await new Promise<void>((resolve) => {
+        const req = httpModule.request(webhookUrl, options, (res) => {
+          let data = '';
+          res.on('data', chunk => data += chunk);
+          res.on('end', () => {
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+              webhookSent = true;
+            }
+            resolve();
+          });
+        });
+
+        req.on('error', () => resolve());
+        req.on('timeout', () => { req.destroy(); resolve(); });
+
+        req.write(payload);
+        req.end();
+      });
+    } catch {
+      // Fire-and-forget
+    }
+  }
+
+  return { queued: true, webhookSent };
+}
 
 interface CredentialStatus {
   id: string;
@@ -467,6 +571,16 @@ export async function POST(request: NextRequest) {
       );
       response.instance_id = instanceId;
       response.message += " Widget added to dashboard.";
+    }
+
+    // Auto-trigger initial refresh for agent_refresh widgets
+    if (widgetData.fetch.type === "agent_refresh") {
+      const refreshResult = await triggerInitialRefresh(uniqueSlug);
+      if (refreshResult.webhookSent) {
+        response.message += " Initial refresh triggered.";
+      } else {
+        response.message += " Initial refresh queued (will process on next heartbeat).";
+      }
     }
 
     return NextResponse.json(response, { status: 201 });
