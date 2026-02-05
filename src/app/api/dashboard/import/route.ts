@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
                 widget.fetch || { type: "agent_refresh" },
                 widget.cache || null,
                 null, // author
-                widget.data_schema || null
+                widget.data_schema
               );
 
               existingSlugs.add(newSlug);
@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
                   widget.fetch || { type: "agent_refresh" },
                   widget.cache || null,
                   null, // author
-                  widget.data_schema || null
+                  widget.data_schema
                 );
 
                 slugMap.set(widget.slug, widget.slug);

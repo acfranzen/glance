@@ -660,8 +660,8 @@ export interface CustomWidget {
   cache: CacheConfig | null;
   author: string | null;
   error?: ErrorConfig;
-  // Data validation schema (JSON Schema format)
-  data_schema: DataSchema | null;
+  // Data validation schema (JSON Schema format) - REQUIRED for all widgets
+  data_schema: DataSchema;
 }
 
 export interface WidgetSetup {
@@ -697,7 +697,11 @@ function rowToCustomWidget(row: CustomWidgetRow): CustomWidget {
     fetch: row.fetch ? JSON.parse(row.fetch) : { type: "server_code" },
     cache: row.cache ? JSON.parse(row.cache) : null,
     author: row.author,
-    data_schema: row.data_schema ? JSON.parse(row.data_schema) : null,
+    data_schema: row.data_schema ? JSON.parse(row.data_schema) : {
+      type: "object",
+      properties: { fetchedAt: { type: "string", format: "date-time" } },
+      required: ["fetchedAt"],
+    },
   };
 }
 

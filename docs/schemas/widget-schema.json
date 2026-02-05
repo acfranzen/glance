@@ -1,0 +1,431 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://glance.local/schemas/widget-schema.json",
+  "title": "GlanceWidgetDefinition",
+  "description": "JSON Schema for Glance widget definitions. Use this schema with AI structured output modes (Anthropic tool_use, OpenAI response_format) to ensure all required fields are generated correctly.",
+  "type": "object",
+  "required": [
+    "name",
+    "slug",
+    "source_code",
+    "default_size",
+    "min_size",
+    "fetch",
+    "data_schema",
+    "credentials"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Human-readable widget name (e.g., 'GitHub Pull Requests')"
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$",
+      "minLength": 1,
+      "maxLength": 50,
+      "description": "URL-safe identifier (lowercase, hyphens allowed, e.g., 'github-prs')"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Brief description of what the widget displays"
+    },
+    "source_code": {
+      "type": "string",
+      "minLength": 10,
+      "description": "JSX source code for the widget. Must contain a Widget function that receives { serverData } prop."
+    },
+    "server_code": {
+      "type": "string",
+      "description": "Server-side code for fetch.type='server_code' widgets. Runs in sandboxed VM."
+    },
+    "server_code_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether server_code execution is enabled"
+    },
+    "default_size": {
+      "type": "object",
+      "required": ["w", "h"],
+      "additionalProperties": false,
+      "properties": {
+        "w": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12,
+          "description": "Default width in grid units (1-12)"
+        },
+        "h": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "description": "Default height in grid units (1-20)"
+        }
+      },
+      "description": "Default widget size on the dashboard grid"
+    },
+    "min_size": {
+      "type": "object",
+      "required": ["w", "h"],
+      "additionalProperties": false,
+      "properties": {
+        "w": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12,
+          "description": "Minimum width in grid units (1-12)"
+        },
+        "h": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "description": "Minimum height in grid units (1-20)"
+        }
+      },
+      "description": "Minimum widget size (cannot be resized smaller)"
+    },
+    "refresh_interval": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 300,
+      "description": "Auto-refresh interval in seconds (0 = no auto-refresh)"
+    },
+    "fetch": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["server_code", "webhook", "agent_refresh"],
+          "description": "How widget data is fetched: server_code (widget calls API), webhook (external service pushes), agent_refresh (AI agent collects)"
+        },
+        "instructions": {
+          "type": "string",
+          "minLength": 10,
+          "description": "REQUIRED for agent_refresh: Detailed markdown instructions for the AI agent on how to collect data"
+        },
+        "schedule": {
+          "type": "string",
+          "pattern": "^[*0-9/,-]+ [*0-9/,-]+ [*0-9/,-]+ [*0-9/,-]+ [*0-9/,-]+$",
+          "description": "REQUIRED for agent_refresh: Cron expression (e.g., '*/15 * * * *' for every 15 minutes)"
+        },
+        "info": {
+          "type": "string",
+          "description": "Additional context for AI agents about the fetch process"
+        },
+        "webhook_path": {
+          "type": "string",
+          "description": "For webhook type: custom webhook path"
+        },
+        "webhook_setup_instructions": {
+          "type": "string",
+          "description": "For webhook type: how to configure the external service"
+        },
+        "refresh_endpoint": {
+          "type": "string",
+          "description": "External endpoint to trigger refresh"
+        },
+        "expected_freshness_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Agent should refresh within this window"
+        },
+        "max_staleness_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Widget shows warning after this duration"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "agent_refresh" }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["instructions", "schedule"],
+            "properties": {
+              "instructions": {
+                "minLength": 10,
+                "description": "REQUIRED: Detailed markdown instructions for the AI agent"
+              },
+              "schedule": {
+                "description": "REQUIRED: Cron expression for refresh schedule"
+              }
+            }
+          }
+        }
+      ],
+      "description": "Data fetching configuration"
+    },
+    "data_schema": {
+      "type": "object",
+      "required": ["type", "properties", "required"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "object",
+          "description": "Must be 'object'"
+        },
+        "properties": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "JSON Schema type (string, number, boolean, array, object)"
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable description of this field"
+              },
+              "format": {
+                "type": "string",
+                "description": "Format hint (e.g., 'date-time', 'uri')"
+              },
+              "items": {
+                "type": "object",
+                "description": "For array types: schema for array items"
+              }
+            },
+            "required": ["type"]
+          },
+          "description": "Object defining each data field and its type"
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "contains": {
+            "const": "fetchedAt"
+          },
+          "minItems": 1,
+          "description": "Array of required field names. MUST include 'fetchedAt'."
+        },
+        "additionalProperties": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "description": "JSON Schema defining the expected data structure. Cache POSTs are validated against this."
+    },
+    "credentials": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "name", "description"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unique identifier for this credential (e.g., 'github', 'openweather')"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["api_key", "local_software", "oauth", "agent"],
+            "description": "Credential type: api_key (stored in Glance), local_software (must be installed), oauth (OAuth flow), agent (on agent's machine)"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Human-readable name (e.g., 'GitHub Personal Access Token')"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What this credential is used for"
+          },
+          "info": {
+            "type": "string",
+            "description": "Additional context for AI agents"
+          },
+          "obtain_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "For api_key: URL where user can create the credential"
+          },
+          "obtain_instructions": {
+            "type": "string",
+            "description": "For api_key: step-by-step instructions to create"
+          },
+          "required_scopes": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "For api_key: required OAuth scopes or permissions"
+          },
+          "check_command": {
+            "type": "string",
+            "description": "For local_software: command to check if installed"
+          },
+          "install_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "For local_software: installation URL"
+          },
+          "install_instructions": {
+            "type": "string",
+            "description": "For local_software: installation steps"
+          },
+          "agent_tool": {
+            "type": "string",
+            "description": "For agent: CLI tool name (e.g., 'gh', 'gcloud')"
+          },
+          "agent_auth_check": {
+            "type": "string",
+            "description": "For agent: command to verify auth (e.g., 'gh auth status')"
+          },
+          "agent_auth_instructions": {
+            "type": "string",
+            "description": "For agent: how to authenticate the tool"
+          }
+        }
+      },
+      "description": "Required credentials/dependencies. Use empty array [] if no credentials needed."
+    },
+    "cache": {
+      "type": "object",
+      "properties": {
+        "ttl_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How long data is considered 'fresh'"
+        },
+        "max_staleness_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How long data is usable but stale"
+        },
+        "storage": {
+          "type": "string",
+          "enum": ["memory", "sqlite"],
+          "default": "sqlite",
+          "description": "Cache storage backend"
+        },
+        "on_error": {
+          "type": "string",
+          "enum": ["use_stale", "show_error"],
+          "default": "use_stale",
+          "description": "Behavior when fetch fails"
+        },
+        "info": {
+          "type": "string",
+          "description": "AI agent context for caching strategy"
+        }
+      },
+      "description": "Cache configuration"
+    },
+    "setup": {
+      "type": "object",
+      "required": ["description", "agent_skill", "verification", "idempotent"],
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "What needs to be set up"
+        },
+        "agent_skill": {
+          "type": "string",
+          "description": "How the agent should perform setup"
+        },
+        "verification": {
+          "type": "object",
+          "required": ["type", "target"],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["command_succeeds", "endpoint_responds", "cache_populated"],
+              "description": "How to verify setup succeeded"
+            },
+            "target": {
+              "type": "string",
+              "description": "Command, URL, or widget slug to verify"
+            }
+          }
+        },
+        "idempotent": {
+          "type": "boolean",
+          "description": "Whether setup can be run multiple times safely"
+        },
+        "estimated_time": {
+          "type": "string",
+          "description": "Human-readable time estimate"
+        },
+        "info": {
+          "type": "string",
+          "description": "AI agent context for setup"
+        }
+      },
+      "description": "Setup wizard configuration"
+    },
+    "author": {
+      "type": "string",
+      "description": "Widget author name or identifier"
+    }
+  },
+  "examples": [
+    {
+      "name": "GitHub Pull Requests",
+      "slug": "github-prs",
+      "description": "Shows open pull requests from a repository",
+      "source_code": "function Widget({ serverData }) {\n  const data = serverData;\n  const loading = !serverData;\n  const error = serverData?.error;\n  \n  if (loading) return <Loading message=\"Waiting for data...\" />;\n  if (error) return <ErrorDisplay message={error} />;\n  \n  return (\n    <div className=\"space-y-3\">\n      <List items={data.prs?.map(pr => ({\n        title: pr.title,\n        subtitle: `#${pr.number} by ${pr.author}`,\n        badge: pr.state\n      })) || []} />\n    </div>\n  );\n}",
+      "default_size": { "w": 2, "h": 3 },
+      "min_size": { "w": 1, "h": 2 },
+      "refresh_interval": 300,
+      "fetch": {
+        "type": "agent_refresh",
+        "schedule": "*/15 * * * *",
+        "instructions": "## Data Collection\nRun: gh pr list --repo owner/repo --json number,title,author,state\n\n## Data Transformation\nFormat as: { prs: [...], fetchedAt: ISO timestamp }\n\n## Cache Update\nPOST to /api/widgets/github-prs/cache",
+        "expected_freshness_seconds": 900,
+        "max_staleness_seconds": 3600
+      },
+      "data_schema": {
+        "type": "object",
+        "properties": {
+          "prs": {
+            "type": "array",
+            "description": "List of pull request objects",
+            "items": {
+              "type": "object",
+              "properties": {
+                "number": { "type": "integer" },
+                "title": { "type": "string" },
+                "author": { "type": "string" },
+                "state": { "type": "string" }
+              }
+            }
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO timestamp when data was fetched"
+          }
+        },
+        "required": ["prs", "fetchedAt"]
+      },
+      "credentials": [
+        {
+          "id": "github_cli",
+          "type": "agent",
+          "name": "GitHub CLI",
+          "description": "Agent needs gh CLI authenticated to GitHub",
+          "agent_tool": "gh",
+          "agent_auth_check": "gh auth status",
+          "agent_auth_instructions": "Run `gh auth login` on the machine running the agent"
+        }
+      ],
+      "cache": {
+        "ttl_seconds": 300,
+        "max_staleness_seconds": 900,
+        "storage": "sqlite",
+        "on_error": "use_stale"
+      }
+    }
+  ]
+}
