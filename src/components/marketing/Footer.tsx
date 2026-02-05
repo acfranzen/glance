@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export function Footer() {
   return (
@@ -6,11 +7,13 @@ export function Footer() {
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-sm">
-              <span className="text-sm font-bold text-primary-foreground">
-                G
-              </span>
-            </div>
+            <Image
+              src="/icon.svg"
+              alt="Glance"
+              width={36}
+              height={36}
+              className="rounded-lg"
+            />
             <span className="text-xl font-bold tracking-tight">Glance</span>
           </div>
 

@@ -1,16 +1,22 @@
-# Glance ⚡
+<p align="center">
+  <img src="public/logo-text.png" alt="Glance" width="120" />
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Open Source](https://img.shields.io/badge/Open%20Source-100%25-brightgreen.svg)](https://github.com/acfranzen/glance)
+<p align="center">
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
+  <a href="https://github.com/acfranzen/glance"><img src="https://img.shields.io/badge/Open%20Source-100%25-brightgreen.svg" alt="Open Source" /></a>
+</p>
 
-> **The Dashboard Skill for OpenClaw**
->
-> Stop configuring dashboards. Just tell OpenClaw what you want to see.
+<p align="center">
+  <strong>The Dashboard Skill for OpenClaw</strong><br/>
+  Stop configuring dashboards. Just tell OpenClaw what you want to see.
+</p>
+
+---
 
 Glance is a **free and open source** dashboard that OpenClaw builds and manages for you. Not another app to configure — a skill that gives OpenClaw a visual command center.
 
 Tell OpenClaw _"show me my GitHub PRs"_ and watch it build the widget. Ask _"what needs my attention?"_ and OpenClaw reads your dashboard and tells you. No manual setup. No YAML files. No `.env` hell.
-
 
 ![Glance Dashboard](glance.png)
 
@@ -44,6 +50,7 @@ curl -fsSL https://openglance.dev/install.sh | bash
 ```
 
 This will:
+
 - Clone the repository to `~/.glance`
 - Install dependencies via pnpm
 - Offer to install as a background service (launchd on macOS, systemd on Linux)
@@ -80,12 +87,14 @@ cd ~/.glance  # or your Glance directory
 ```
 
 Benefits:
+
 - ✅ Starts automatically on login
 - ✅ Restarts on crash
 - ✅ Logs to `~/Library/Logs/glance/`
 - ✅ Survives terminal closes
 
 Commands:
+
 ```bash
 # Stop service
 launchctl unload ~/Library/LaunchAgents/com.glance.dashboard.plist
@@ -108,12 +117,14 @@ cd ~/.glance  # or your Glance directory
 ```
 
 Benefits:
+
 - ✅ Starts automatically on login
 - ✅ Restarts on crash
 - ✅ Integrates with journald
 - ✅ Survives terminal closes
 
 Commands:
+
 ```bash
 # Stop service
 systemctl --user stop glance
@@ -263,14 +274,14 @@ OpenClaw: *validates, checks credentials, imports*
 
 ### Custom Widget Definition API
 
-| Method   | Endpoint                            | Description                 |
-| -------- | ----------------------------------- | --------------------------- |
-| `POST`   | `/api/widgets`                      | Create widget definition    |
-| `GET`    | `/api/widgets`                      | List all widget definitions |
-| `GET`    | `/api/widgets/:slug`                | Get widget definition       |
-| `PATCH`  | `/api/widgets/:slug`                | Update widget definition    |
-| `DELETE` | `/api/widgets/:slug`                | Delete widget definition    |
-| `POST`   | `/api/widgets/:slug/execute`        | Execute server code         |
+| Method   | Endpoint                     | Description                 |
+| -------- | ---------------------------- | --------------------------- |
+| `POST`   | `/api/widgets`               | Create widget definition    |
+| `GET`    | `/api/widgets`               | List all widget definitions |
+| `GET`    | `/api/widgets/:slug`         | Get widget definition       |
+| `PATCH`  | `/api/widgets/:slug`         | Update widget definition    |
+| `DELETE` | `/api/widgets/:slug`         | Delete widget definition    |
+| `POST`   | `/api/widgets/:slug/execute` | Execute server code         |
 
 ### Credential API
 
@@ -283,15 +294,15 @@ OpenClaw: *validates, checks credentials, imports*
 
 ### Dashboard API
 
-| Method   | Endpoint                    | Description                    |
-| -------- | --------------------------- | ------------------------------ |
-| `GET`    | `/api/widgets/instances`    | List widgets on dashboard      |
-| `POST`   | `/api/widgets/instances`    | Add widget to dashboard        |
-| `PATCH`  | `/api/widgets/instances/:id`| Update widget instance         |
-| `DELETE` | `/api/widgets/instances/:id`| Remove widget from dashboard   |
-| `GET`    | `/api/layout`               | Get layout and theme           |
-| `PUT`    | `/api/layout`               | Save layout/theme              |
-| `GET`    | `/api/snapshot`             | Dashboard snapshot for AI      |
+| Method   | Endpoint                     | Description                  |
+| -------- | ---------------------------- | ---------------------------- |
+| `GET`    | `/api/widgets/instances`     | List widgets on dashboard    |
+| `POST`   | `/api/widgets/instances`     | Add widget to dashboard      |
+| `PATCH`  | `/api/widgets/instances/:id` | Update widget instance       |
+| `DELETE` | `/api/widgets/instances/:id` | Remove widget from dashboard |
+| `GET`    | `/api/layout`                | Get layout and theme         |
+| `PUT`    | `/api/layout`                | Save layout/theme            |
+| `GET`    | `/api/snapshot`              | Dashboard snapshot for AI    |
 
 ### Widget Package API
 
@@ -302,11 +313,11 @@ OpenClaw: *validates, checks credentials, imports*
 
 ### Widget Data API
 
-| Method | Endpoint                     | Description                         |
-| ------ | ---------------------------- | ----------------------------------- |
-| `POST` | `/api/widgets/proxy`         | Proxy API calls with credentials    |
-| `POST` | `/api/widgets/:slug/refresh` | Request data refresh (webhook/agent)|
-| `GET`  | `/api/widgets/:slug/cache`   | Get cached widget data              |
+| Method | Endpoint                     | Description                          |
+| ------ | ---------------------------- | ------------------------------------ |
+| `POST` | `/api/widgets/proxy`         | Proxy API calls with credentials     |
+| `POST` | `/api/widgets/:slug/refresh` | Request data refresh (webhook/agent) |
+| `GET`  | `/api/widgets/:slug/cache`   | Get cached widget data               |
 
 ### Widget SDK Components
 
