@@ -831,6 +831,198 @@ The `!GW1!` prefix indicates Glance Widget v1 format (compressed base64 JSON).
 
 When `cronSchedule` is returned, OpenClaw should register a cron job.
 
+## Agent Import Flow (Best Practice)
+
+When importing a widget package, follow this flow to ensure all requirements are met before importing:
+
+### Step 1: Dry Run First
+
+```http
+POST /api/widgets/import
+Content-Type: application/json
+
+{
+  "package": "!GW1!...",
+  "dry_run": true
+}
+```
+
+This returns credential requirements WITHOUT importing:
+
+```json
+{
+  "valid": true,
+  "widget_preview": {
+    "name": "Recent Emails",
+    "slug": "recent-emails",
+    "description": "Shows emails with AI summaries"
+  },
+  "status": {
+    "credentials": [
+      {
+        "id": "gog_cli",
+        "type": "agent",
+        "status": "agent_required",
+        "agent_auth_check": "gog auth status",
+        "agent_auth_instructions": "Run gog auth login"
+      },
+      {
+        "id": "anthropic",
+        "type": "api_key",
+        "status": "missing",
+        "obtain_url": "https://console.anthropic.com/"
+      }
+    ],
+    "setup": { "status": "not_required" },
+    "fetch": { "type": "agent_refresh", "status": "ready" }
+  },
+  "ready_to_import": true
+}
+```
+
+### Step 2: Verify Credentials
+
+For each credential in `status.credentials`, check based on type:
+
+| Type | How to Verify | Action if Missing |
+|------|--------------|-------------------|
+| `agent` | Run `agent_auth_check` command | Follow `agent_auth_instructions` |
+| `api_key` | Check Glance credential store | Store via `POST /api/credentials` |
+| `local_software` | Run `check_command` | Install the software |
+
+**Example verification:**
+```bash
+# For agent credentials - verify auth
+gog auth status        # Should return success
+gh auth status         # Should show logged in
+
+# For local_software - verify installed
+which icalBuddy        # Should return path
+/opt/homebrew/bin/icalBuddy --version
+
+# For api_key - check Glance
+curl "$GLANCE_URL/api/credentials" | jq '.[] | select(.provider == "anthropic")'
+```
+
+### Step 3: Report Issues Before Import
+
+If any credentials are missing, inform the user:
+
+```
+Widget "Recent Emails" requires:
+- ✅ gog CLI (authenticated) 
+- ❌ Anthropic API key (missing in Glance)
+- ✅ icalBuddy (installed)
+
+Would you like me to:
+1. Store your Anthropic API key in Glance
+2. Import without it (widget will fail on first refresh)
+```
+
+### Step 4: Import with Confirmation
+
+Once all requirements are met:
+
+```http
+POST /api/widgets/import
+Content-Type: application/json
+
+{
+  "package": "!GW1!...",
+  "confirm": true,
+  "auto_add_to_dashboard": true
+}
+```
+
+### Step 5: Auto-Refresh Triggers
+
+After successful import of `agent_refresh` widgets, Glance automatically:
+1. Queues a refresh request
+2. Sends webhook to OpenClaw (if configured)
+3. Agent receives refresh notification and populates initial data
+
+### Complete Import Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  1. Dry Run Import                                              │
+│     POST /api/widgets/import { package, dry_run: true }         │
+│                              ↓                                  │
+│  2. Review Credentials                                          │
+│     For each credential in response:                            │
+│     - agent: run agent_auth_check                               │
+│     - api_key: check Glance store                               │
+│     - local_software: run check_command                         │
+│                              ↓                                  │
+│  3. Handle Missing Requirements                                 │
+│     - Report to user what's missing                             │
+│     - Help configure (store keys, install software)             │
+│     - OR proceed with warning                                   │
+│                              ↓                                  │
+│  4. Confirm Import                                              │
+│     POST /api/widgets/import { package, confirm: true }         │
+│                              ↓                                  │
+│  5. Auto-Refresh (for agent_refresh widgets)                    │
+│     - Glance queues refresh + sends webhook                     │
+│     - Agent spawns subagent to collect initial data             │
+│     - Widget displays data immediately                          │
+│                              ↓                                  │
+│  6. Browser Verification                                        │
+│     - Open dashboard, confirm widget renders                    │
+│     - Report success to user                                    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Credential Type Reference
+
+| Type | Where It Lives | Agent Responsibility |
+|------|----------------|---------------------|
+| `api_key` | Encrypted in Glance DB | Store via `/api/credentials` before import |
+| `local_software` | User's machine | Verify installed, help user install if missing |
+| `agent` | Agent's environment | Run auth check, the agent HAS this access |
+| `oauth` | Glance DB (future) | Initiate OAuth flow |
+
+### Example: Full Import with Verification
+
+```javascript
+// 1. Dry run to check requirements
+const dryRun = await fetch('/api/widgets/import', {
+  method: 'POST',
+  body: JSON.stringify({ package: widgetPackage, dry_run: true })
+}).then(r => r.json());
+
+// 2. Check each credential
+const issues = [];
+for (const cred of dryRun.status.credentials) {
+  if (cred.type === 'agent' && cred.agent_auth_check) {
+    const result = await exec(cred.agent_auth_check);
+    if (result.exitCode !== 0) {
+      issues.push(`${cred.name}: Run "${cred.agent_auth_instructions}"`);
+    }
+  } else if (cred.type === 'api_key' && cred.status === 'missing') {
+    issues.push(`${cred.name}: Store API key in Glance`);
+  } else if (cred.type === 'local_software' && cred.status === 'not_installed') {
+    issues.push(`${cred.name}: Install via ${cred.install_url}`);
+  }
+}
+
+// 3. Report or proceed
+if (issues.length > 0) {
+  console.log('Missing requirements:', issues);
+  // Help user fix, or proceed with warning
+}
+
+// 4. Import
+const result = await fetch('/api/widgets/import', {
+  method: 'POST',
+  body: JSON.stringify({ package: widgetPackage, confirm: true })
+}).then(r => r.json());
+
+// 5. Auto-refresh happens automatically for agent_refresh widgets
+// 6. Verify in browser
+browser({ action: 'open', targetUrl: GLANCE_URL });
+```
+
 ## Key UI Components
 
 | Component | Use For |
