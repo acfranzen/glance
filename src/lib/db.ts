@@ -69,22 +69,21 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at);
 `);
 
-// Migration: Add custom_widget_id column if it doesn't exist (for existing databases)
-{
-  const tableInfo = db.prepare('PRAGMA table_info(widgets)').all() as Array<{ name: string }>;
-  const hasCustomWidgetId = tableInfo.some(col => col.name === 'custom_widget_id');
-  if (!hasCustomWidgetId) {
-    db.exec(`ALTER TABLE widgets ADD COLUMN custom_widget_id TEXT`);
-  }
+function tableExists(name: string): boolean {
+  const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(name) as
+    | { name: string }
+    | undefined;
+  return !!row;
 }
 
-// Migration: Add server_code columns to custom_widgets if they don't exist
-{
-  const tableInfo = db.prepare('PRAGMA table_info(custom_widgets)').all() as Array<{ name: string }>;
-  const hasServerCode = tableInfo.some(col => col.name === 'server_code');
-  if (!hasServerCode) {
-    db.exec(`ALTER TABLE custom_widgets ADD COLUMN server_code TEXT`);
-    db.exec(`ALTER TABLE custom_widgets ADD COLUMN server_code_enabled INTEGER DEFAULT 0`);
+function ensureColumnExists(table: string, column: string, ddl: string): void {
+  if (!tableExists(table)) {
+    return;
+  }
+  const tableInfo = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  const hasColumn = tableInfo.some((col) => col.name === column);
+  if (!hasColumn) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
   }
 }
 
@@ -106,7 +105,10 @@ db.exec(`
     updated_at TEXT DEFAULT (datetime('now')),
     enabled INTEGER DEFAULT 1,
     server_code TEXT,
-    server_code_enabled INTEGER DEFAULT 0
+    server_code_enabled INTEGER DEFAULT 0,
+    required_credentials TEXT DEFAULT '[]',
+    runtime_profile TEXT DEFAULT 'safe',
+    permissions TEXT DEFAULT '{}'
   );
 
   -- Data providers for widget data fetching
@@ -121,10 +123,64 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS workspaces (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT UNIQUE NOT NULL,
+    is_default INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS executions (
+    execution_id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    actor TEXT NOT NULL DEFAULT 'system',
+    target_type TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    input TEXT,
+    output TEXT,
+    started_at TEXT DEFAULT (datetime('now')),
+    finished_at TEXT,
+    cost_hint REAL,
+    error TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS artifacts (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    manifest TEXT NOT NULL,
+    metadata TEXT DEFAULT '{}',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
   -- Create indexes for custom widgets (column now exists)
   CREATE INDEX IF NOT EXISTS idx_custom_widgets_slug ON custom_widgets(slug);
   CREATE INDEX IF NOT EXISTS idx_widgets_custom_widget_id ON widgets(custom_widget_id);
   CREATE INDEX IF NOT EXISTS idx_data_providers_slug ON data_providers(slug);
+  CREATE INDEX IF NOT EXISTS idx_workspaces_slug ON workspaces(slug);
+  CREATE INDEX IF NOT EXISTS idx_executions_workspace_id ON executions(workspace_id);
+  CREATE INDEX IF NOT EXISTS idx_executions_target ON executions(target_type, target_id);
+  CREATE INDEX IF NOT EXISTS idx_artifacts_workspace_id ON artifacts(workspace_id);
+`);
+
+// Backward-safe migrations for pre-existing databases.
+ensureColumnExists('widgets', 'custom_widget_id', 'custom_widget_id TEXT');
+ensureColumnExists('custom_widgets', 'server_code', 'server_code TEXT');
+ensureColumnExists('custom_widgets', 'server_code_enabled', 'server_code_enabled INTEGER DEFAULT 0');
+ensureColumnExists('custom_widgets', 'required_credentials', "required_credentials TEXT DEFAULT '[]'");
+ensureColumnExists('custom_widgets', 'runtime_profile', "runtime_profile TEXT DEFAULT 'safe'");
+ensureColumnExists('custom_widgets', 'permissions', "permissions TEXT DEFAULT '{}'");
+
+db.exec(`
+  INSERT INTO workspaces (id, name, slug, is_default)
+  SELECT 'ws_default', 'Default Workspace', 'default', 1
+  WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE is_default = 1);
 `);
 
 // Type definitions
@@ -180,6 +236,9 @@ export interface CustomWidgetRow {
   enabled: number;
   server_code: string | null;
   server_code_enabled: number;
+  required_credentials: string;
+  runtime_profile: string;
+  permissions: string;
 }
 
 export interface DataProviderRow {
@@ -191,6 +250,42 @@ export interface DataProviderRow {
   credential_id: string | null;
   default_headers: string;
   created_at: string;
+}
+
+export interface WorkspaceRow {
+  id: string;
+  name: string;
+  slug: string;
+  is_default: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExecutionRow {
+  execution_id: string;
+  workspace_id: string;
+  actor: string;
+  target_type: string;
+  target_id: string;
+  status: string;
+  input: string | null;
+  output: string | null;
+  started_at: string;
+  finished_at: string | null;
+  cost_hint: number | null;
+  error: string | null;
+  created_at: string;
+}
+
+export interface ArtifactRow {
+  id: string;
+  workspace_id: string;
+  type: string;
+  title: string;
+  manifest: string;
+  metadata: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // Prepared statements for widgets
@@ -252,12 +347,15 @@ const stmts = {
   getCustomWidget: db.prepare('SELECT * FROM custom_widgets WHERE id = ?'),
   getCustomWidgetBySlug: db.prepare('SELECT * FROM custom_widgets WHERE slug = ?'),
   insertCustomWidget: db.prepare(`
-    INSERT INTO custom_widgets (id, name, slug, description, source_code, compiled_code, default_size, min_size, data_providers, refresh_interval, enabled, server_code, server_code_enabled)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO custom_widgets (
+      id, name, slug, description, source_code, compiled_code, default_size, min_size, data_providers,
+      refresh_interval, enabled, server_code, server_code_enabled, required_credentials, runtime_profile, permissions
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `),
   updateCustomWidget: db.prepare(`
     UPDATE custom_widgets
-    SET name = ?, description = ?, source_code = ?, compiled_code = ?, default_size = ?, min_size = ?, data_providers = ?, refresh_interval = ?, enabled = ?, server_code = ?, server_code_enabled = ?, updated_at = datetime('now')
+    SET name = ?, description = ?, source_code = ?, compiled_code = ?, default_size = ?, min_size = ?, data_providers = ?, refresh_interval = ?, enabled = ?, server_code = ?, server_code_enabled = ?, required_credentials = ?, runtime_profile = ?, permissions = ?, updated_at = datetime('now')
     WHERE id = ?
   `),
   deleteCustomWidget: db.prepare('DELETE FROM custom_widgets WHERE id = ?'),
@@ -276,6 +374,39 @@ const stmts = {
     WHERE id = ?
   `),
   deleteDataProvider: db.prepare('DELETE FROM data_providers WHERE id = ?'),
+
+  // Workspaces
+  getAllWorkspaces: db.prepare('SELECT * FROM workspaces ORDER BY created_at'),
+  getDefaultWorkspace: db.prepare('SELECT * FROM workspaces WHERE is_default = 1 LIMIT 1'),
+  getWorkspaceById: db.prepare('SELECT * FROM workspaces WHERE id = ?'),
+  getWorkspaceBySlug: db.prepare('SELECT * FROM workspaces WHERE slug = ?'),
+  insertWorkspace: db.prepare(`
+    INSERT INTO workspaces (id, name, slug, is_default)
+    VALUES (?, ?, ?, ?)
+  `),
+
+  // Executions
+  insertExecution: db.prepare(`
+    INSERT INTO executions (execution_id, workspace_id, actor, target_type, target_id, status, input, output, started_at, finished_at, cost_hint, error)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `),
+  getExecution: db.prepare('SELECT * FROM executions WHERE execution_id = ?'),
+  getRecentExecutions: db.prepare('SELECT * FROM executions ORDER BY created_at DESC LIMIT ?'),
+  getExecutionsByWorkspace: db.prepare('SELECT * FROM executions WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?'),
+  updateExecutionResult: db.prepare(`
+    UPDATE executions
+    SET status = ?, output = ?, finished_at = ?, cost_hint = ?, error = ?
+    WHERE execution_id = ?
+  `),
+
+  // Artifacts
+  insertArtifact: db.prepare(`
+    INSERT INTO artifacts (id, workspace_id, type, title, manifest, metadata)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `),
+  getArtifact: db.prepare('SELECT * FROM artifacts WHERE id = ?'),
+  getAllArtifacts: db.prepare('SELECT * FROM artifacts ORDER BY created_at DESC LIMIT ?'),
+  getArtifactsByWorkspace: db.prepare('SELECT * FROM artifacts WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?'),
 };
 
 // Widget functions
@@ -434,9 +565,27 @@ export interface CustomWidget {
   enabled: boolean;
   server_code: string | null;
   server_code_enabled: boolean;
+  required_credentials: string[];
+  runtime_profile: 'safe' | 'networked';
+  permissions: {
+    credential_providers?: string[];
+    data_providers?: string[];
+    allow_network?: boolean;
+  };
 }
 
 function rowToCustomWidget(row: CustomWidgetRow): CustomWidget {
+  const parseJsonWithFallback = <T>(raw: unknown, fallback: T): T => {
+    if (typeof raw !== 'string') {
+      return fallback;
+    }
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return fallback;
+    }
+  };
+
   return {
     id: row.id,
     name: row.name,
@@ -444,15 +593,18 @@ function rowToCustomWidget(row: CustomWidgetRow): CustomWidget {
     description: row.description,
     source_code: row.source_code,
     compiled_code: row.compiled_code,
-    default_size: JSON.parse(row.default_size),
-    min_size: JSON.parse(row.min_size),
-    data_providers: JSON.parse(row.data_providers),
+    default_size: parseJsonWithFallback(row.default_size, { w: 0, h: 0 }),
+    min_size: parseJsonWithFallback(row.min_size, { w: 0, h: 0 }),
+    data_providers: parseJsonWithFallback(row.data_providers, ['invalid provider slug']),
     refresh_interval: row.refresh_interval,
     created_at: row.created_at,
     updated_at: row.updated_at,
     enabled: row.enabled === 1,
     server_code: row.server_code,
     server_code_enabled: row.server_code_enabled === 1,
+    required_credentials: parseJsonWithFallback(row.required_credentials, []),
+    runtime_profile: row.runtime_profile === 'networked' ? 'networked' : 'safe',
+    permissions: parseJsonWithFallback(row.permissions, {}),
   };
 }
 
@@ -486,7 +638,10 @@ export function createCustomWidget(
   refreshInterval: number,
   enabled: boolean = true,
   serverCode: string | null = null,
-  serverCodeEnabled: boolean = false
+  serverCodeEnabled: boolean = false,
+  requiredCredentials: string[] = [],
+  runtimeProfile: 'safe' | 'networked' = 'safe',
+  permissions: CustomWidget['permissions'] = {}
 ): void {
   stmts.insertCustomWidget.run(
     id,
@@ -501,7 +656,10 @@ export function createCustomWidget(
     refreshInterval,
     enabled ? 1 : 0,
     serverCode,
-    serverCodeEnabled ? 1 : 0
+    serverCodeEnabled ? 1 : 0,
+    JSON.stringify(requiredCredentials),
+    runtimeProfile,
+    JSON.stringify(permissions)
   );
   logEvent('custom_widget_created', { id, name, slug });
 }
@@ -518,7 +676,10 @@ export function updateCustomWidget(
   refreshInterval: number,
   enabled: boolean,
   serverCode: string | null = null,
-  serverCodeEnabled: boolean = false
+  serverCodeEnabled: boolean = false,
+  requiredCredentials: string[] = [],
+  runtimeProfile: 'safe' | 'networked' = 'safe',
+  permissions: CustomWidget['permissions'] = {}
 ): void {
   stmts.updateCustomWidget.run(
     name,
@@ -532,6 +693,9 @@ export function updateCustomWidget(
     enabled ? 1 : 0,
     serverCode,
     serverCodeEnabled ? 1 : 0,
+    JSON.stringify(requiredCredentials),
+    runtimeProfile,
+    JSON.stringify(permissions),
     id
   );
   logEvent('custom_widget_updated', { id, name });
@@ -629,6 +793,204 @@ export function updateDataProvider(
 export function deleteDataProvider(id: string): void {
   stmts.deleteDataProvider.run(id);
   logEvent('data_provider_deleted', { id });
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  slug: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+function rowToWorkspace(row: WorkspaceRow): Workspace {
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    is_default: row.is_default === 1,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+export function getDefaultWorkspace(): Workspace {
+  const row = stmts.getDefaultWorkspace.get() as WorkspaceRow | undefined;
+  if (!row) {
+    throw new Error('Default workspace not found');
+  }
+  return rowToWorkspace(row);
+}
+
+export function getWorkspace(id: string): Workspace | undefined {
+  const row = stmts.getWorkspaceById.get(id) as WorkspaceRow | undefined;
+  return row ? rowToWorkspace(row) : undefined;
+}
+
+export function getWorkspaceBySlug(slug: string): Workspace | undefined {
+  const row = stmts.getWorkspaceBySlug.get(slug) as WorkspaceRow | undefined;
+  return row ? rowToWorkspace(row) : undefined;
+}
+
+export function listWorkspaces(): Workspace[] {
+  const rows = stmts.getAllWorkspaces.all() as WorkspaceRow[];
+  return rows.map(rowToWorkspace);
+}
+
+export function createWorkspace(params: {
+  id: string;
+  name: string;
+  slug: string;
+  is_default?: boolean;
+}): void {
+  stmts.insertWorkspace.run(params.id, params.name, params.slug, params.is_default ? 1 : 0);
+}
+
+export interface ExecutionRecord {
+  execution_id: string;
+  workspace_id: string;
+  actor: string;
+  target_type: string;
+  target_id: string;
+  status: string;
+  input: Record<string, unknown> | null;
+  output: unknown;
+  started_at: string;
+  finished_at: string | null;
+  cost_hint: number | null;
+  error: string | null;
+  created_at: string;
+}
+
+function rowToExecution(row: ExecutionRow): ExecutionRecord {
+  return {
+    execution_id: row.execution_id,
+    workspace_id: row.workspace_id,
+    actor: row.actor,
+    target_type: row.target_type,
+    target_id: row.target_id,
+    status: row.status,
+    input: row.input ? (JSON.parse(row.input) as Record<string, unknown>) : null,
+    output: row.output ? (JSON.parse(row.output) as unknown) : null,
+    started_at: row.started_at,
+    finished_at: row.finished_at,
+    cost_hint: row.cost_hint,
+    error: row.error,
+    created_at: row.created_at,
+  };
+}
+
+export function createExecution(params: {
+  execution_id: string;
+  workspace_id: string;
+  actor: string;
+  target_type: string;
+  target_id: string;
+  status: string;
+  input: Record<string, unknown> | null;
+  started_at?: string;
+}): void {
+  stmts.insertExecution.run(
+    params.execution_id,
+    params.workspace_id,
+    params.actor,
+    params.target_type,
+    params.target_id,
+    params.status,
+    params.input ? JSON.stringify(params.input) : null,
+    null,
+    params.started_at || new Date().toISOString(),
+    null,
+    null,
+    null
+  );
+}
+
+export function completeExecution(params: {
+  execution_id: string;
+  status: string;
+  output: unknown;
+  finished_at?: string;
+  cost_hint?: number | null;
+  error?: string | null;
+}): void {
+  stmts.updateExecutionResult.run(
+    params.status,
+    params.output === undefined ? null : JSON.stringify(params.output),
+    params.finished_at || new Date().toISOString(),
+    params.cost_hint ?? null,
+    params.error ?? null,
+    params.execution_id
+  );
+}
+
+export function getExecution(executionId: string): ExecutionRecord | undefined {
+  const row = stmts.getExecution.get(executionId) as ExecutionRow | undefined;
+  return row ? rowToExecution(row) : undefined;
+}
+
+export function listExecutions(params?: { workspace_id?: string; limit?: number }): ExecutionRecord[] {
+  const limit = Math.max(1, Math.min(params?.limit ?? 100, 500));
+  const rows = params?.workspace_id
+    ? (stmts.getExecutionsByWorkspace.all(params.workspace_id, limit) as ExecutionRow[])
+    : (stmts.getRecentExecutions.all(limit) as ExecutionRow[]);
+  return rows.map(rowToExecution);
+}
+
+export interface Artifact {
+  id: string;
+  workspace_id: string;
+  type: string;
+  title: string;
+  manifest: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+function rowToArtifact(row: ArtifactRow): Artifact {
+  return {
+    id: row.id,
+    workspace_id: row.workspace_id,
+    type: row.type,
+    title: row.title,
+    manifest: JSON.parse(row.manifest) as Record<string, unknown>,
+    metadata: JSON.parse(row.metadata) as Record<string, unknown>,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+export function createArtifact(params: {
+  id: string;
+  workspace_id: string;
+  type: string;
+  title: string;
+  manifest: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}): void {
+  stmts.insertArtifact.run(
+    params.id,
+    params.workspace_id,
+    params.type,
+    params.title,
+    JSON.stringify(params.manifest),
+    JSON.stringify(params.metadata || {})
+  );
+}
+
+export function getArtifact(id: string): Artifact | undefined {
+  const row = stmts.getArtifact.get(id) as ArtifactRow | undefined;
+  return row ? rowToArtifact(row) : undefined;
+}
+
+export function listArtifacts(params?: { workspace_id?: string; limit?: number }): Artifact[] {
+  const limit = Math.max(1, Math.min(params?.limit ?? 100, 500));
+  const rows = params?.workspace_id
+    ? (stmts.getArtifactsByWorkspace.all(params.workspace_id, limit) as ArtifactRow[])
+    : (stmts.getAllArtifacts.all(limit) as ArtifactRow[]);
+  return rows.map(rowToArtifact);
 }
 
 export default db;

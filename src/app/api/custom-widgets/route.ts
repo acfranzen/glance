@@ -8,6 +8,11 @@ import {
   getCustomWidget
 } from '@/lib/db';
 import { validateServerCode } from '@/lib/widget-sdk/server-executor';
+import { contractErrorResponse } from '@/lib/api-errors';
+import { validateStoredCustomWidgetPayload } from '@/lib/widget-contract';
+import { validateCustomWidgetCreateGate } from '@/platform/contracts/contract-gates';
+import { inferRequiredCredentialProviders } from '@/platform/contracts/custom-widget-semantic';
+import { enforceWriteGuards } from '@/lib/request-guards';
 
 // Helper to slugify a name
 function slugify(name: string): string {
@@ -26,9 +31,23 @@ export async function GET(request: NextRequest) {
 
   try {
     const includeDisabled = request.nextUrl.searchParams.get('include_disabled') === 'true';
-    const customWidgets = getAllCustomWidgets(includeDisabled);
+    const rows = getAllCustomWidgets(includeDisabled);
+    const customWidgets = [];
+    const invalid_custom_widgets: Array<{ id: string; issues: ReturnType<typeof validateStoredCustomWidgetPayload>['issues'] }> = [];
 
-    return NextResponse.json({ custom_widgets: customWidgets });
+    for (const row of rows) {
+      const validation = validateStoredCustomWidgetPayload(row);
+      if (!validation.ok) {
+        invalid_custom_widgets.push({ id: row.id, issues: validation.issues });
+        continue;
+      }
+      customWidgets.push({
+        ...row,
+        required_credentials_effective: inferRequiredCredentialProviders(row),
+      });
+    }
+
+    return NextResponse.json({ custom_widgets: customWidgets, invalid_custom_widgets });
   } catch (error) {
     console.error('Failed to fetch custom widgets:', error);
     return NextResponse.json(
@@ -44,27 +63,25 @@ export async function POST(request: NextRequest) {
   if (!auth.authorized) {
     return NextResponse.json({ error: auth.error }, { status: 401 });
   }
+  const guardResponse = enforceWriteGuards(request, { maxBytes: 512 * 1024, rateLimit: 30 });
+  if (guardResponse) {
+    return guardResponse;
+  }
 
   try {
     const body = await request.json();
-
-    // Validate required fields
-    if (!body.name || typeof body.name !== 'string') {
-      return NextResponse.json(
-        { error: 'Name is required' },
-        { status: 400 }
+    const gate = validateCustomWidgetCreateGate(body);
+    if (!gate.ok || !gate.value) {
+      return contractErrorResponse(
+        gate.failure?.code || 'VALIDATION_ERROR',
+        gate.failure?.message || 'Invalid custom widget create payload',
+        gate.failure?.details || []
       );
     }
-
-    if (!body.source_code || typeof body.source_code !== 'string') {
-      return NextResponse.json(
-        { error: 'Source code is required' },
-        { status: 400 }
-      );
-    }
+    const payload = gate.value;
 
     // Generate or validate slug
-    let slug = body.slug || slugify(body.name);
+    let slug = payload.slug || slugify(payload.name);
     
     // Check if slug already exists
     const existing = getCustomWidgetBySlug(slug);
@@ -73,37 +90,19 @@ export async function POST(request: NextRequest) {
       slug = `${slug}-${nanoid(6)}`;
     }
 
-    // Parse and validate sizes
-    const defaultSize = body.default_size || { w: 4, h: 3 };
-    const minSize = body.min_size || { w: 2, h: 2 };
-
-    if (typeof defaultSize.w !== 'number' || typeof defaultSize.h !== 'number') {
-      return NextResponse.json(
-        { error: 'default_size must have numeric w and h properties' },
-        { status: 400 }
-      );
-    }
-
-    if (typeof minSize.w !== 'number' || typeof minSize.h !== 'number') {
-      return NextResponse.json(
-        { error: 'min_size must have numeric w and h properties' },
-        { status: 400 }
-      );
-    }
+    const defaultSize = payload.default_size || { w: 4, h: 3 };
+    const minSize = payload.min_size || { w: 2, h: 2 };
 
     // Parse data providers
-    const dataProviders = Array.isArray(body.data_providers) 
-      ? body.data_providers.filter((p: unknown) => typeof p === 'string')
-      : [];
+    const dataProviders = payload.data_providers || [];
 
     // Parse refresh interval
-    const refreshInterval = typeof body.refresh_interval === 'number'
-      ? body.refresh_interval
-      : 300;
+    const refreshInterval = typeof payload.refresh_interval === 'number' ? payload.refresh_interval : 300;
+    const runtimeProfile = payload.runtime_profile || (dataProviders.length > 0 ? 'networked' : 'safe');
 
     // Parse server code fields
-    const serverCode = typeof body.server_code === 'string' ? body.server_code : null;
-    const serverCodeEnabled = body.server_code_enabled === true;
+    const serverCode = typeof payload.server_code === 'string' ? payload.server_code : null;
+    const serverCodeEnabled = payload.server_code_enabled === true;
 
     // Validate server code if provided and enabled
     if (serverCode && serverCodeEnabled) {
@@ -122,18 +121,21 @@ export async function POST(request: NextRequest) {
     // Create the custom widget
     createCustomWidget(
       id,
-      body.name,
+      payload.name,
       slug,
-      body.description || null,
-      body.source_code,
-      null, // compiled_code will be generated client-side
+      payload.description || null,
+      payload.source_code,
+      payload.compiled_code || null,
       defaultSize,
       minSize,
       dataProviders,
       refreshInterval,
-      true, // enabled by default
+      payload.enabled !== undefined ? payload.enabled : true,
       serverCode,
-      serverCodeEnabled
+      serverCodeEnabled,
+      payload.required_credentials || [],
+      runtimeProfile,
+      payload.permissions || {}
     );
 
     // Fetch and return the created widget
@@ -142,7 +144,27 @@ export async function POST(request: NextRequest) {
       throw new Error('Failed to create custom widget');
     }
 
-    return NextResponse.json(created, { status: 201 });
+    const storedValidation = validateStoredCustomWidgetPayload(created);
+    if (!storedValidation.ok) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'INVALID_STORED_WIDGET',
+            message: 'Created custom widget does not satisfy contract',
+            details: storedValidation.issues,
+          },
+        },
+        { status: 422 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        ...created,
+        required_credentials_effective: inferRequiredCredentialProviders(created),
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error('Failed to create custom widget:', error);
     return NextResponse.json(

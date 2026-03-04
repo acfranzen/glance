@@ -4,9 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack -p 3333",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start -p 3333",
-    "lint": "eslint"
+    "lint": "eslint",
+    "lint:contracts": "eslint src/lib/widget-contract.ts src/platform/contracts/*.ts src/lib/request-guards.ts src/lib/api-errors.ts src/app/api/widgets/route.ts src/app/api/widgets/\\[id\\]/route.ts src/app/api/custom-widgets/route.ts src/app/api/custom-widgets/\\[slug\\]/route.ts src/app/api/custom-widgets/\\[slug\\]/execute/route.ts src/app/api/v2/**/*.ts tests/*.test.ts scripts/audit-widget-contract.ts",
+    "test": "node --test tests/*.test.ts",
+    "test:contracts": "node --test tests/widget-contract.test.ts tests/platform-contracts.test.ts",
+    "audit:widget-contract": "node scripts/audit-widget-contract.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

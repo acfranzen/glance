@@ -1,5 +1,6 @@
 import vm from 'vm';
 import { getCredential, Provider, PROVIDERS } from '@/lib/credentials';
+import { sanitizeErrorMessage, sanitizeForLog } from '@/lib/security';
 
 export interface ServerExecutorParams {
   [key: string]: unknown;
@@ -143,9 +144,9 @@ export async function executeServerCode(
 
       // Console for debugging (output is captured)
       console: {
-        log: (...args: unknown[]) => console.log('[server-code]', ...args),
-        warn: (...args: unknown[]) => console.warn('[server-code]', ...args),
-        error: (...args: unknown[]) => console.error('[server-code]', ...args),
+        log: (...args: unknown[]) => console.log('[server-code]', sanitizeForLog(args)),
+        warn: (...args: unknown[]) => console.warn('[server-code]', sanitizeForLog(args)),
+        error: (...args: unknown[]) => console.error('[server-code]', sanitizeForLog(args)),
       },
 
       // Block dangerous globals by setting them to undefined
@@ -197,8 +198,8 @@ export async function executeServerCode(
       error: null,
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown execution error';
-    console.error('[server-executor] Execution error:', errorMessage);
+    const errorMessage = sanitizeErrorMessage(error) || 'Unknown execution error';
+    console.error('[server-executor] Execution error:', sanitizeForLog(error));
 
     return {
       data: null,

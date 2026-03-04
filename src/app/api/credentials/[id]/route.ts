@@ -7,6 +7,7 @@ import {
   validateCredential,
   Provider,
 } from '@/lib/credentials';
+import { enforceWriteGuards } from '@/lib/request-guards';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -34,6 +35,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   const auth = validateAuthOrInternal(request);
   if (!auth.authorized) {
     return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+  const guardResponse = enforceWriteGuards(request, { maxBytes: 64 * 1024, rateLimit: 40 });
+  if (guardResponse) {
+    return guardResponse;
   }
 
   const { id } = await params;

@@ -38,6 +38,14 @@ export interface CustomWidgetDefinition {
   enabled: boolean;
   server_code: string | null;
   server_code_enabled: boolean;
+  required_credentials?: string[];
+  required_credentials_effective?: string[];
+  runtime_profile?: 'safe' | 'networked';
+  permissions?: {
+    credential_providers?: string[];
+    data_providers?: string[];
+    allow_network?: boolean;
+  };
 }
 
 // Widget context for runtime execution

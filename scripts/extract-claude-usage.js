@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const fs = require('fs');
 
 const CACHE_FILE = '/tmp/claude-usage-cache.json';

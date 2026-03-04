@@ -64,6 +64,21 @@ That's it. OpenClaw handles the rest.
 
 ---
 
+## Platform Direction
+
+Glance is evolving into a lean, contract-first widget platform for solo developers and small teams.
+
+- **Instant generation loop**: prompt -> working widget -> iterate in minutes.
+- **Simple, stable contracts**: versioned widget/connector/execution manifests with strict validation.
+- **Clear credential UX**: connect-test-save flow, encrypted local secrets, explicit secret references.
+- **Shareable widget packs**: publish/install widgets, connector recipes, and templates with trust metadata.
+- **Practical guardrails**: safe runtime profiles, permission checks, egress controls, and better auth defaults.
+- **MVP-safe migration**: keep `/api/widgets`, `/api/custom-widgets`, and `/api/credentials` compatible while `/api/v2/*` rolls out.
+
+Read the full plan: **[Platform Overhaul Plan](docs/platform-overhaul-plan.md)**
+
+---
+
 ## 🧠 How It Works
 
 ### OpenClaw Builds Widgets
@@ -165,6 +180,9 @@ OpenClaw can use these components when creating widgets:
 All components are from [shadcn/ui](https://ui.shadcn.com) — accessible via the `SDK` namespace.
 
 📖 **[Full Widget SDK Documentation →](docs/widget-sdk.md)**
+📐 **[Contract-First Validation Guide →](docs/widget-contract-first.md)**
+🧭 **[V2 Migration Guide →](docs/migration-guide-v2.md)**
+🛠️ **[V2 Platform Runbook →](docs/runbook-v2-platform.md)**
 
 ---
 

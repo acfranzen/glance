@@ -50,6 +50,8 @@ export function CredentialsModal({ open, onOpenChange }: CredentialsModalProps) 
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [status, setStatus] = useState<Record<string, CredentialStatus>>({});
+  const [requiredByProvider, setRequiredByProvider] = useState<Record<string, string[]>>({});
+  const [missingRequiredProviders, setMissingRequiredProviders] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -78,6 +80,8 @@ export function CredentialsModal({ open, onOpenChange }: CredentialsModalProps) 
       setCredentials(data.credentials || []);
       setProviders(data.providers || []);
       setStatus(data.status || {});
+      setRequiredByProvider(data.required_by_provider || {});
+      setMissingRequiredProviders(data.missing_required_providers || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load credentials');
     } finally {
@@ -191,6 +195,11 @@ export function CredentialsModal({ open, onOpenChange }: CredentialsModalProps) 
                     {!status[provider.id]?.configured && (
                       <span className="text-xs text-muted-foreground ml-auto">
                         Not configured
+                      </span>
+                    )}
+                    {!status[provider.id]?.configured && missingRequiredProviders.includes(provider.id) && (
+                      <span className="text-xs text-red-500 ml-auto">
+                        Required
                       </span>
                     )}
                     {status[provider.id]?.source === 'env' && (
@@ -354,6 +363,16 @@ export function CredentialsModal({ open, onOpenChange }: CredentialsModalProps) 
                 <AlertCircle className="w-4 h-4 text-yellow-500" />
                 <span>Not configured — widget will show setup instructions</span>
               </p>
+              {missingRequiredProviders.length > 0 && (
+                <p className="text-red-500">
+                  Missing required credentials: {missingRequiredProviders.join(', ')}
+                </p>
+              )}
+              {Object.keys(requiredByProvider).length > 0 && (
+                <p>
+                  Credential usage: {Object.entries(requiredByProvider).map(([provider, widgets]) => `${provider} (${widgets.length})`).join(', ')}
+                </p>
+              )}
             </div>
           </div>
         )}

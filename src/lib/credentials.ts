@@ -2,6 +2,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import db from "./db";
+import { sanitizeErrorMessage, sanitizeForLog } from "./security";
 
 // Credential types
 export interface Credential {
@@ -282,7 +283,7 @@ export function getCredential(provider: Provider): string | null {
 
     return null;
   } catch (error) {
-    console.error(`Failed to get credential for ${provider}:`, error);
+    console.error(`Failed to get credential for ${provider}:`, sanitizeForLog(error));
 
     // Fallback to env on decryption error (e.g., AUTH_TOKEN changed)
     const providerConfig = PROVIDERS[provider];
@@ -477,7 +478,7 @@ export async function validateCredential(
   } catch (error) {
     return {
       valid: false,
-      error: error instanceof Error ? error.message : "Validation failed",
+      error: sanitizeErrorMessage(error) || "Validation failed",
     };
   }
 }

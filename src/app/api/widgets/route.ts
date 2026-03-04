@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { nanoid } from 'nanoid';
 import { validateAuthOrInternal } from '@/lib/auth';
-import { getAllWidgets, createWidget, getWidget } from '@/lib/db';
+import { getAllWidgets, createWidget, getWidget, getCustomWidget } from '@/lib/db';
 import type { CreateWidgetRequest, Widget } from '@/types/api';
+import { contractErrorResponse } from '@/lib/api-errors';
+import { validateStoredWidgetPayload } from '@/lib/widget-contract';
+import { validateWidgetCreateGate } from '@/platform/contracts/contract-gates';
+import { enforceWriteGuards } from '@/lib/request-guards';
 
 // Default sizes for widget types
 const DEFAULT_SIZES: Record<string, { w: number; h: number }> = {
@@ -31,19 +35,46 @@ export async function GET(request: NextRequest) {
 
   try {
     const rows = getAllWidgets();
-    const widgets: Widget[] = rows.map((row) => ({
-      id: row.id,
-      type: row.type,
-      title: row.title,
-      config: JSON.parse(row.config),
-      position: JSON.parse(row.position),
-      data_source: row.data_source ? JSON.parse(row.data_source) : undefined,
-      custom_widget_id: (row as { custom_widget_id?: string }).custom_widget_id || undefined,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    }));
+    const widgets: Widget[] = [];
+    const invalid_widgets: Array<{ id: string; issues: ReturnType<typeof validateStoredWidgetPayload>['issues'] }> = [];
 
-    return NextResponse.json({ widgets });
+    for (const row of rows) {
+      try {
+        const payload = {
+          type: row.type,
+          title: row.title,
+          config: JSON.parse(row.config),
+          position: JSON.parse(row.position),
+          data_source: row.data_source ? JSON.parse(row.data_source) : undefined,
+          custom_widget_id: (row as { custom_widget_id?: string }).custom_widget_id || undefined,
+        };
+
+        const result = validateStoredWidgetPayload(payload);
+        if (!result.ok) {
+          invalid_widgets.push({ id: row.id, issues: result.issues });
+          continue;
+        }
+
+        widgets.push({
+          id: row.id,
+          type: row.type,
+          title: row.title,
+          config: payload.config,
+          position: payload.position,
+          data_source: payload.data_source,
+          custom_widget_id: payload.custom_widget_id,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+        });
+      } catch {
+        invalid_widgets.push({
+          id: row.id,
+          issues: [{ path: '$', code: 'invalid_json', message: 'Stored widget JSON could not be parsed' }],
+        });
+      }
+    }
+
+    return NextResponse.json({ widgets, invalid_widgets });
   } catch (error) {
     console.error('Failed to fetch widgets:', error);
     return NextResponse.json(
@@ -59,29 +90,38 @@ export async function POST(request: NextRequest) {
   if (!auth.authorized) {
     return NextResponse.json({ error: auth.error }, { status: 401 });
   }
+  const guardResponse = enforceWriteGuards(request, { maxBytes: 64 * 1024, rateLimit: 120 });
+  if (guardResponse) {
+    return guardResponse;
+  }
 
   try {
     const body: CreateWidgetRequest = await request.json();
-
-    if (!body.type) {
-      return NextResponse.json(
-        { error: 'Widget type is required' },
-        { status: 400 }
+    const gate = validateWidgetCreateGate(body);
+    if (!gate.ok || !gate.value) {
+      return contractErrorResponse(
+        gate.failure?.code || 'VALIDATION_ERROR',
+        gate.failure?.message || 'Invalid widget create payload',
+        gate.failure?.details || []
       );
     }
 
-    // For custom widgets, custom_widget_id is required
-    if (body.type === 'custom' && !body.custom_widget_id) {
-      return NextResponse.json(
-        { error: 'custom_widget_id is required for custom widget type' },
-        { status: 400 }
-      );
+    const payload = gate.value;
+
+    if (payload.type === 'custom' && payload.custom_widget_id) {
+      const customWidget = getCustomWidget(payload.custom_widget_id);
+      if (!customWidget || !customWidget.enabled) {
+        return NextResponse.json(
+          { error: { code: 'INVALID_REFERENCE', message: 'custom_widget_id does not refer to an enabled custom widget' } },
+          { status: 422 }
+        );
+      }
     }
 
     const id = nanoid();
-    const title = body.title || body.type.charAt(0).toUpperCase() + body.type.slice(1);
-    const config = body.config || {};
-    const defaultSize = DEFAULT_SIZES[body.type] || { w: 3, h: 2 };
+    const title = payload.title;
+    const config = payload.config;
+    const defaultSize = DEFAULT_SIZES[payload.type] || { w: 3, h: 2 };
 
     // Calculate position for new widget (place at bottom)
     const existingWidgets = getAllWidgets();
@@ -93,14 +133,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const position = body.position || {
+    const position = payload.position || {
       x: 0,
       y: maxY,
       w: defaultSize.w,
       h: defaultSize.h,
     };
 
-    createWidget(id, body.type, title, config, position, body.data_source, body.custom_widget_id);
+    createWidget(id, payload.type, title, config, position, payload.data_source, payload.custom_widget_id);
 
     const created = getWidget(id);
     if (!created) {

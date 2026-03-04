@@ -20,6 +20,7 @@ The Glance Widget SDK enables AI assistants (and developers) to create custom wi
 - [Widget Lifecycle](#widget-lifecycle)
 - [Error Handling Patterns](#error-handling-patterns)
 - [Output Format](#output-format)
+- [Contract Validation](#contract-validation)
 - [Full API Reference](#full-api-reference)
 - [Best Practices](#best-practices)
 - [OpenClaw Integration Guide](#openclaw-integration-guide)
@@ -1318,6 +1319,18 @@ try {
 ## Output Format
 
 Understanding API response structures is critical for parsing and handling data correctly.
+
+## Contract Validation
+
+Glance enforces strict contract-first validation for widget create/update payloads and stored widget reads.
+
+- Invalid payloads return `422` with field-level errors.
+- Unknown fields are rejected.
+- Invalid stored widgets are blocked from render APIs.
+
+Use the required JSON templates and full migration guidance in:
+
+- `docs/widget-contract-first.md`
 
 ### Success Response: Create Widget
 
